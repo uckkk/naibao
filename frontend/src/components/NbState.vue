@@ -1,0 +1,120 @@
+<template>
+  <view class="nb-state" :class="`t-${type}`">
+    <view class="icon" aria-hidden="true">
+      <text class="icon-text">{{ iconText }}</text>
+    </view>
+    <view class="text">
+      <text class="title">{{ computedTitle }}</text>
+      <text v-if="computedDesc" class="desc">{{ computedDesc }}</text>
+    </view>
+
+    <view v-if="actionText" class="actions">
+      <button class="nb-primary-btn action-btn" @click="$emit('action')">{{ actionText }}</button>
+    </view>
+
+    <slot />
+  </view>
+</template>
+
+<script>
+export default {
+  name: 'NbState',
+  props: {
+    type: { type: String, default: 'info' }, // loading | empty | error | info
+    title: { type: String, default: '' },
+    desc: { type: String, default: '' },
+    actionText: { type: String, default: '' },
+  },
+  emits: ['action'],
+  computed: {
+    iconText() {
+      const t = String(this.type || 'info')
+      if (t === 'loading') return '...'
+      if (t === 'empty') return '0'
+      if (t === 'error') return '!'
+      return 'i'
+    },
+    computedTitle() {
+      if (this.title) return this.title
+      const t = String(this.type || 'info')
+      if (t === 'loading') return '加载中...'
+      if (t === 'empty') return '暂无数据'
+      if (t === 'error') return '出错了'
+      return '提示'
+    },
+    computedDesc() {
+      return this.desc || ''
+    },
+  },
+}
+</script>
+
+<style scoped>
+.nb-state {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--nb-border);
+  border-radius: var(--nb-radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.10);
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(27, 26, 23, 0.06);
+  border: 1px solid rgba(27, 26, 23, 0.08);
+}
+
+.icon-text {
+  font-size: 18px;
+  color: rgba(27, 26, 23, 0.72);
+  font-weight: 900;
+}
+
+.t-loading .icon {
+  background: rgba(247, 201, 72, 0.20);
+  border-color: rgba(247, 201, 72, 0.35);
+}
+
+.t-error .icon {
+  background: rgba(226, 74, 59, 0.12);
+  border-color: rgba(226, 74, 59, 0.22);
+}
+
+.t-empty .icon {
+  background: rgba(27, 26, 23, 0.04);
+}
+
+.title {
+  font-size: 16px;
+  color: var(--nb-text);
+  font-weight: 900;
+}
+
+.desc {
+  margin-top: 6px;
+  display: block;
+  font-size: 13px;
+  color: var(--nb-muted);
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.actions {
+  margin-top: 2px;
+}
+
+.action-btn {
+  height: 44px;
+  border-radius: 22px;
+  font-size: 15px;
+}
+</style>

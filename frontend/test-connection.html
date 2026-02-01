@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>连接测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            background: #007aff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>🔗 服务器连接测试</h1>
+    <button onclick="testHealth()">测试健康检查</button>
+    <button onclick="testRegister()">测试注册接口</button>
+    <div id="result" class="result">点击按钮开始测试...</div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const API_BASE = params.get('api') || window.location.origin;
+        
+        function showResult(message, isError = false) {
+            const result = document.getElementById('result');
+            result.textContent = message;
+            result.className = 'result ' + (isError ? 'error' : 'success');
+        }
+        
+        async function testHealth() {
+            showResult('测试中...\n\n正在连接服务器...');
+            const start = Date.now();
+            
+            try {
+                // 先测试基本连接
+                showResult('测试中...\n\n步骤1: 测试基本连接...');
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+                
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-cache',
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                const time = Date.now() - start;
+                
+                showResult(`✅ 连接成功！\n\n步骤2: 解析响应...`);
+                
+                const data = await response.json();
+                
+                const headers = [];
+                response.headers.forEach((value, key) => {
+                    headers.push(`${key}: ${value}`);
+                });
+                
+                showResult(`✅ 健康检查成功！\n\n状态码: ${response.status}\n响应时间: ${time}ms\n\n响应数据:\n${JSON.stringify(data, null, 2)}\n\n响应头:\n${headers.join('\n')}`);
+            } catch (error) {
+                const time = Date.now() - start;
+                let errorDetails = `❌ 健康检查失败！\n\n`;
+                errorDetails += `错误类型: ${error.name}\n`;
+                errorDetails += `错误消息: ${error.message}\n`;
+                errorDetails += `耗时: ${time}ms\n\n`;
+                
+                if (error.name === 'AbortError') {
+                    errorDetails += `💡 原因: 请求超时（10秒）\n`;
+                    errorDetails += `可能原因：\n`;
+                    errorDetails += `1. 腾讯云安全组未开放8080端口\n`;
+                    errorDetails += `2. 服务器防火墙阻止\n`;
+                    errorDetails += `3. 网络路由问题\n`;
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorDetails += `💡 原因: 无法连接到服务器\n`;
+                    errorDetails += `可能原因：\n`;
+                    errorDetails += `1. ⚠️  腾讯云安全组未开放8080端口（最可能）\n`;
+                    errorDetails += `2. 服务器防火墙阻止\n`;
+                    errorDetails += `3. 网络连接问题\n`;
+                    errorDetails += `4. CORS预检请求失败\n\n`;
+                    errorDetails += `🔧 解决方案：\n`;
+                    errorDetails += `1. 登录腾讯云控制台\n`;
+                    errorDetails += `2. 云服务器 → 实例 → 找到您的服务器\n`;
+                    errorDetails += `3. 点击「安全组」标签\n`;
+                    errorDetails += `4. 点击安全组名称\n`;
+                    errorDetails += `5. 「入站规则」→「添加规则」\n`;
+                    errorDetails += `6. 类型：自定义，来源：0.0.0.0/0，协议端口：TCP:8080，策略：允许\n`;
+                    errorDetails += `7. 点击「完成」并等待1-2分钟\n`;
+                } else {
+                    errorDetails += `错误堆栈:\n${error.stack}`;
+                }
+                
+                showResult(errorDetails, true);
+            }
+        }
+        
+        async function testRegister() {
+            showResult('测试中...\n\n正在测试注册接口...');
+            try {
+                const phone = '189' + Math.floor(Math.random() * 100000000).toString().padStart(8, '0');
+                const start = Date.now();
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
+                const response = await fetch(`${API_BASE}/api/public/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors',
+                    cache: 'no-cache',
+                    signal: controller.signal,
+                    body: JSON.stringify({
+                        phone: phone,
+                        password: 'test123456',
+                        nickname: '测试用户'
+                    })
+                });
+                
+                clearTimeout(timeoutId);
+                const time = Date.now() - start;
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult(`✅ 注册成功！\n\n手机号: ${phone}\n状态码: ${response.status}\n响应时间: ${time}ms\n\n响应数据:\n${JSON.stringify(data, null, 2)}\n\n✅ Token: ${data.token ? '已生成' : '未生成'}\n✅ 用户ID: ${data.user?.id || 'N/A'}`);
+                } else {
+                    showResult(`⚠️ 注册失败\n\n状态码: ${response.status}\n响应时间: ${time}ms\n\n响应数据:\n${JSON.stringify(data, null, 2)}`, true);
+                }
+            } catch (error) {
+                const time = Date.now() - start;
+                let errorDetails = `❌ 注册失败！\n\n`;
+                errorDetails += `错误类型: ${error.name}\n`;
+                errorDetails += `错误消息: ${error.message}\n`;
+                errorDetails += `耗时: ${time}ms\n\n`;
+                
+                if (error.name === 'AbortError') {
+                    errorDetails += `💡 原因: 请求超时（10秒）`;
+                } else {
+                    errorDetails += `错误堆栈:\n${error.stack}`;
+                }
+                
+                showResult(errorDetails, true);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>快速测试</title>
+</head>
+<body>
+    <h1>API连接快速测试</h1>
+    <button onclick="test()">测试注册接口</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function test() {
+            const result = document.getElementById('result')
+            const params = new URLSearchParams(window.location.search)
+            const API_BASE = params.get('api') || window.location.origin
+
+            let log = '开始测试...\n\n'
+            log += `API_BASE: ${API_BASE}\n\n`
+            result.textContent = log
+            
+            try {
+                // 1. 测试健康检查
+                log += '1. 测试健康检查接口...\n'
+                result.textContent = log
+                
+                try {
+                    const healthResponse = await fetch(`${API_BASE}/health`, {
+                        method: 'GET',
+                        mode: 'cors'
+                    })
+                    log += `   状态码: ${healthResponse.status}\n`
+                    const healthData = await healthResponse.json()
+                    log += `   响应: ${JSON.stringify(healthData)}\n\n`
+                    result.textContent = log
+                } catch (e) {
+                    log += `   ❌ 健康检查失败: ${e.message}\n\n`
+                    result.textContent = log
+                }
+                
+                // 2. 测试注册接口
+                log += '2. 测试注册接口...\n'
+                result.textContent = log
+                
+                const phone = '189' + Math.floor(Math.random() * 100000000).toString().padStart(8, '0')
+                log += `   手机号: ${phone}\n`
+                result.textContent = log
+                
+                const startTime = Date.now()
+                const response = await fetch(`${API_BASE}/api/public/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors',
+                    body: JSON.stringify({
+                        phone: phone,
+                        password: 'test123456',
+                        nickname: '测试用户'
+                    })
+                })
+                
+                const endTime = Date.now()
+                log += `   响应时间: ${endTime - startTime}ms\n`
+                log += `   状态码: ${response.status}\n`
+                log += `   Status Text: ${response.statusText}\n`
+                
+                // 检查响应头
+                log += `   响应头:\n`
+                response.headers.forEach((value, key) => {
+                    log += `     ${key}: ${value}\n`
+                })
+                
+                result.textContent = log
+                
+                const data = await response.json()
+                log += `\n响应数据:\n${JSON.stringify(data, null, 2)}\n`
+                
+                if (response.ok) {
+                    log += `\n✅ 注册成功！`
+                } else {
+                    log += `\n⚠️ 注册失败（状态码: ${response.status}）`
+                }
+                
+                result.textContent = log
+            } catch (error) {
+                log += `\n❌ 错误详情:\n`
+                log += `   错误类型: ${error.name}\n`
+                log += `   错误消息: ${error.message}\n`
+                log += `   错误堆栈:\n${error.stack}\n`
+                
+                // 检查是否是网络错误
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    log += `\n💡 这可能是网络连接问题或CORS问题\n`
+                }
+                
+                result.textContent = log
+                console.error('完整错误:', error)
+            }
+        }
+    </script>
+</body>
+</html>

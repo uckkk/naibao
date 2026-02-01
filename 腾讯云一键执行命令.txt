@@ -1,0 +1,45 @@
+# 腾讯云 Cloud Shell 一键执行命令
+# 直接复制下面的命令，在腾讯云控制台的 Cloud Shell 中粘贴执行
+
+# ==========================================
+# 方法1：一键执行（推荐）
+# ==========================================
+# 复制下面的整段代码，在 Cloud Shell 中粘贴并回车
+
+cd /opt/naibao/backend && \
+./stop_server.sh && \
+sed -i 's/Access-Control-Allow-Credentials", "true"/Access-Control-Allow-Credentials", "false"/' router/middleware/cors.go && \
+export PATH=$PATH:/usr/local/go/bin && \
+export GOPROXY=https://goproxy.cn,direct && \
+go build -o naibao-server main.go && \
+./start_server.sh && \
+sleep 2 && \
+curl -s http://127.0.0.1:8080/health && \
+echo "" && \
+echo "✅ 修复完成！" && \
+echo "📋 请检查腾讯云安全组是否开放8080端口"
+
+# ==========================================
+# 方法2：使用脚本文件（如果方法1失败）
+# ==========================================
+# 1. 先上传 腾讯云一键修复.sh 到服务器
+# 2. 然后执行：
+# chmod +x /opt/naibao/backend/腾讯云一键修复.sh
+# /opt/naibao/backend/腾讯云一键修复.sh
+
+# ==========================================
+# 验证命令（修复后执行）
+# ==========================================
+# 检查CORS配置：
+curl -I http://127.0.0.1:8080/health | grep -i "access-control"
+
+# 检查服务状态：
+ps aux | grep naibao-server | grep -v grep
+
+# 检查端口监听：
+netstat -tlnp | grep 8080
+
+# 查看日志：
+tail -20 /opt/naibao/backend/server.log
+
+

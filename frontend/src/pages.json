@@ -1,0 +1,106 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/register/index",
+      "style": {
+        "navigationBarTitleText": "注册",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "首页",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/baby-info/index",
+      "style": {
+        "navigationBarTitleText": "宝宝基础资料"
+      }
+    },
+    {
+      "path": "pages/formula-select/index",
+      "style": {
+        "navigationBarTitleText": "选择奶粉"
+      }
+    },
+    {
+      "path": "pages/formula-spec/index",
+      "style": {
+        "navigationBarTitleText": "冲泡要求"
+      }
+    },
+    {
+      "path": "pages/feeding-settings/index",
+      "style": {
+        "navigationBarTitleText": "喂奶间隔与提醒"
+      }
+    },
+    {
+      "path": "pages/data-detail/index",
+      "style": {
+        "navigationBarTitleText": "数据详情"
+      }
+    },
+    {
+      "path": "pages/family/index",
+      "style": {
+        "navigationBarTitleText": "家庭共享"
+      }
+    },
+    {
+      "path": "pages/report/index",
+      "style": {
+        "navigationBarTitleText": "数据报告"
+      }
+    },
+    {
+      "path": "pages/admin/index",
+      "style": {
+        "navigationBarTitleText": "管理后台"
+      }
+    },
+    {
+      "path": "pages/avatar-select/index",
+      "style": {
+        "navigationBarTitleText": "选择头像",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "奶宝",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f8f8f8"
+  },
+  "tabBar": {
+    "color": "#7a7e83",
+    "selectedColor": "#FFD700",
+    "borderStyle": "black",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "iconPath": "static/tabbar/home.png",
+        "selectedIconPath": "static/tabbar/home-active.png",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/data-detail/index",
+        "iconPath": "static/tabbar/data.png",
+        "selectedIconPath": "static/tabbar/data-active.png",
+        "text": "数据"
+      }
+    ]
+  }
+}

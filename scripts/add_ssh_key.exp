@@ -1,0 +1,51 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server ""
+set user "root"
+set port "22"
+set password ""
+
+if {[info exists env(SSH_HOST)]} { set server $env(SSH_HOST) }
+if {[info exists env(SSH_USER)]} { set user $env(SSH_USER) }
+if {[info exists env(SSH_PORT)]} { set port $env(SSH_PORT) }
+if {[info exists env(SSH_PASSWORD)]} { set password $env(SSH_PASSWORD) }
+
+if {$server == ""} {
+    puts "❌ 缺少 SSH_HOST。请先设置环境变量或填写 scripts/.env.local（参考 scripts/.env.example）。"
+    exit 1
+}
+
+if {$password == ""} {
+    puts "❌ 缺少 SSH_PASSWORD。该脚本仅用于“密码认证下自动写入公钥”。建议优先使用密钥认证：scripts/init_ssh.sh"
+    exit 1
+}
+set pubkey_file "$env(HOME)/.ssh/id_rsa.pub"
+
+# 读取公钥内容
+set fp [open $pubkey_file r]
+set pubkey [read $fp]
+close $fp
+set pubkey [string trimright $pubkey "\n\r"]
+
+spawn ssh -o StrictHostKeyChecking=no -p ${port} ${user}@${server} "mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '$pubkey' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo 'SUCCESS'"
+
+expect {
+    "password:" {
+        send "${password}\r"
+        exp_continue
+    }
+    "Permission denied" {
+        puts "❌ 权限被拒绝"
+        exit 1
+    }
+    "SUCCESS" {
+        puts "✅ 公钥已添加到服务器"
+        exit 0
+    }
+    timeout {
+        puts "❌ 连接超时"
+        exit 1
+    }
+    eof
+}

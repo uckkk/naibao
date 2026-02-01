@@ -1,0 +1,42 @@
+# 环境变量文件（包含敏感信息）
+backend/.env
+backend/.env.production
+*.env
+*.env.local
+
+# 服务器配置信息
+服务器配置信息.md
+
+# 日志文件
+*.log
+logs/
+
+# 编译文件
+backend/naibao-server
+backend/*.exe
+
+# 依赖
+node_modules/
+vendor/
+
+# 前端构建产物
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+*.pid
+
+# Playwright / E2E 产物
+test-results/
+playwright-report/

@@ -1,0 +1,8 @@
+.env
+.env.*
+naibao-server
+*.exe
+*.log
+tmp/
+vendor/
+
