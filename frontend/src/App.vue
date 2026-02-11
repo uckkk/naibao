@@ -1,6 +1,22 @@
 <script>
 export default {
   onLaunch() {
+    // 全局收敛：避免 401 跳转登录时，各页面 catch 里反复 toast 出“无意义错误”。
+    // 真正的提示在登录页一次性展示（更像一个产品，而不是一堆页面各说各话）。
+    try {
+      if (!uni.__nb_toast_patched && typeof uni.showToast === 'function') {
+        const original = uni.showToast.bind(uni)
+        uni.showToast = (opts = {}) => {
+          try {
+            const title = typeof opts === 'string' ? opts : opts?.title
+            if (title === '__NB_AUTH_REDIRECT__' || title === '未登录或登录已过期') return
+          } catch {}
+          return original(opts)
+        }
+        uni.__nb_toast_patched = true
+      }
+    } catch {}
+
     // 如存在 token：直接进入首页，减少“每次都看到登录页”的摩擦。
     // token 过期会在 API 层 401 时自动清理并回到登录页。
     try {
@@ -10,6 +26,27 @@ export default {
       }
     } catch {
       // 忽略：低端机/隐私模式可能读取 storage 失败
+    }
+
+    // 全站弱网/错误交互收敛：NetworkBanner 的“重试”触发当前页面的 onNbRetry()（若存在）
+    // 这样每个页面只需实现一个方法即可复用一致的交互入口。
+    try {
+      if (!uni.__nb_net_retry_hooked && typeof uni.$on === 'function') {
+        uni.$on('nb:network:retry', () => {
+          try {
+            if (typeof getCurrentPages !== 'function') return
+            const pages = getCurrentPages() || []
+            const last = pages[pages.length - 1]
+            const vm = last && (last.$vm || last)
+            if (vm && typeof vm.onNbRetry === 'function') vm.onNbRetry()
+          } catch {
+            // ignore
+          }
+        })
+        uni.__nb_net_retry_hooked = true
+      }
+    } catch {
+      // ignore
     }
   },
   onShow() {},

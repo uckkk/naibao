@@ -8,136 +8,243 @@
         <text class="menu-line"></text>
       </view>
     </view>
-    
-    <!-- 宝宝信息区域 -->
-    <view class="baby-profile-section">
-      <!-- 大头像 -->
-      <view class="baby-avatar-large" @click="goToBabyInfo">
-        <image 
-          :src="currentBaby.avatar_url || '/static/default-avatar.png'" 
-          class="avatar-img-large"
-          mode="aspectFill"
+
+	    <view class="home-main">
+	      <NbNetworkBanner />
+
+        <NbLoadingSwitch :loading="pageLoading">
+          <template #skeleton>
+            <view class="home-skel">
+              <view class="baby-profile-section">
+                <view class="baby-avatar-large">
+                  <NbSkeletonAvatar :size="84" shape="circle" />
+                </view>
+                <view class="baby-name-row">
+                  <NbSkeleton :w="132" :h="22" :radius="11" />
+                </view>
+                <view class="baby-stats-row">
+                  <NbSkeleton :w="210" :h="14" :radius="7" />
+                </view>
+              </view>
+
+              <view class="home-focus">
+                <view class="hero">
+                  <view style="display:flex;justify-content:center;">
+                    <NbSkeleton :w="72" :h="12" :radius="6" />
+                  </view>
+                  <view style="margin-top:8px;display:flex;justify-content:center;">
+                    <NbSkeleton :w="260" :h="44" :radius="22" />
+                  </view>
+                  <view class="hero-meta">
+                    <NbSkeleton :w="240" :h="14" :radius="7" />
+                  </view>
+                  <view class="hero-badges">
+                    <NbSkeleton :w="140" :h="26" :radius="13" />
+                  </view>
+                </view>
+
+                <view class="timeline">
+                  <view class="timeline-track">
+                    <NbSkeleton :w="'100%'" :h="26" :radius="13" />
+                  </view>
+                  <view class="timeline-axis">
+                    <NbSkeleton :w="'100%'" :h="12" :radius="6" />
+                  </view>
+                  <view class="timeline-summary">
+                    <NbSkeleton :w="120" :h="12" :radius="6" />
+                  </view>
+                </view>
+              </view>
+            </view>
+          </template>
+
+          <NbState
+            v-if="errorText"
+            type="error"
+            title="加载失败"
+            :desc="errorText"
+            actionText="重试"
+            @action="onNbRetry"
+          />
+
+          <NbState
+            v-else-if="!currentBaby.id"
+            type="info"
+            title="还没有宝宝档案"
+            desc="先创建宝宝，才能开始记录与计算下次喂奶"
+            actionText="去建档"
+            @action="goToBabyInfo"
+          />
+
+          <template v-else>
+	      <!-- 宝宝信息区域 -->
+	      <view class="baby-profile-section">
+	        <view class="baby-avatar-large" @click="goToBabyInfo">
+	          <image
+            :src="currentBaby.avatar_url || '/static/default-avatar.png'"
+            class="avatar-img-large"
+            mode="aspectFill"
+          />
+        </view>
+
+        <view class="baby-name-row">
+          <text class="baby-name-large">{{ currentBaby.nickname || '宝宝' }}</text>
+        </view>
+
+        <view class="baby-stats-row">
+          <text class="stat-text">{{ babyAgeText }}</text>
+          <text v-if="zodiacText" class="stat-dot">·</text>
+          <text v-if="zodiacText" class="stat-text">{{ zodiacText }}</text>
+        </view>
+      </view>
+
+      <!-- Setup Nudge：轻量引导（可关闭），让首次上手更像“一个产品”而不是页面集合 -->
+      <view v-if="setupNudge" class="setup-nudge" @click="handleSetupNudgeTap(setupNudge)">
+        <view class="setup-nudge-left">
+          <view class="setup-nudge-icon" :class="`t-${setupNudge.tone || 'info'}`" aria-hidden="true">
+            <text class="setup-nudge-icon-text">{{ setupNudge.icon || 'i' }}</text>
+          </view>
+          <view class="setup-nudge-text">
+            <text class="setup-nudge-title">{{ setupNudge.title }}</text>
+            <text v-if="setupNudge.desc" class="setup-nudge-desc">{{ setupNudge.desc }}</text>
+          </view>
+        </view>
+
+        <view class="setup-nudge-right">
+          <text class="setup-nudge-cta">{{ setupNudge.actionText }}</text>
+          <text class="setup-nudge-chev">›</text>
+          <text class="setup-nudge-close" @click.stop="dismissSetupNudge(setupNudge.key)">×</text>
+        </view>
+      </view>
+
+      <!-- 首页信息减法：主页只保留“下次喂奶 + 时间轴”，解释与明细下钻到抽屉 -->
+      <view class="home-focus">
+        <view class="hero">
+          <text class="hero-label">下次喂奶</text>
+
+          <view class="hero-time-row" aria-hidden="true">
+            <view v-if="nextFeedingDayLabel" class="hero-day-pill">
+              <text class="hero-day-pill-text">{{ nextFeedingDayLabel }}</text>
+            </view>
+            <text class="hero-time">{{ nextFeedingClockText }}</text>
+          </view>
+
+          <view class="hero-countdown-row" :class="{ overdue: nextCountdownMode === 'overdue' }">
+            <text v-if="hasNextFeeding" class="hero-countdown-prefix">
+              {{ nextCountdownMode === 'overdue' ? '已超时' : '还有' }}
+            </text>
+            <text class="hero-countdown-hm">{{ nextCountdownHMText }}</text>
+          </view>
+
+          <text v-if="sinceLastDurationHMText" class="hero-meta-line">上次 {{ lastFeedingClockText }} · {{ sinceLastDurationHMText }}前</text>
+
+          <view class="hero-badges">
+            <view class="health-pill" :class="`lv-${insightLevel}`" @click="openExplainModal">
+              <text class="health-pill-text">{{ homeStatusText }}</text>
+            </view>
+
+            <view
+              v-if="weaningPillText"
+              class="weaning-pill"
+              :class="weaningPillClass"
+              @click="goWeaningPlan"
+            >
+              <text class="weaning-pill-text">{{ weaningPillText }}</text>
+            </view>
+          </view>
+        </view>
+
+        <FeedingTimeline24
+          :marks="todayTimelineMarks"
+          :selectedKey="selectedTimelineKey"
+          :nowMs="nowTickMs"
+          :nextMs="nextFeedingTimestampMs"
+          :summaryText="timelineSummaryText"
+          @open="openTodayModal"
+          @select="handleHomeTimelineSelect"
         />
       </view>
-      
-      <!-- 宝宝名字 -->
-      <view class="baby-name-row">
-        <text class="baby-name-large">{{ currentBaby.nickname || '宝宝' }}</text>
-      </view>
-      
-      <!-- 统计数据 -->
-      <view class="baby-stats-row">
-        <text class="stat-text">{{ babyAgeText }}</text>
-        <text v-if="zodiacText" class="stat-dot">·</text>
-        <text v-if="zodiacText" class="stat-text">{{ zodiacText }}</text>
-      </view>
-    </view>
-    
-    <!-- 今日概览：减焦虑 + 一眼看懂 + 高频一键（点击打开今日喂奶详情） -->
-    <view class="today-card" @click="openTodayModal">
-      <view class="today-head">
-        <view class="today-title">
-          <text class="today-title-prefix">今天已经喝了</text>
-          <text class="today-title-num">{{ todayCount }}</text>
-          <text class="today-title-suffix">次奶</text>
-        </view>
-        <view class="health-pill" :class="`lv-${insightLevel}`">
-          <text class="health-pill-text">{{ insightLabel }}</text>
-        </view>
-      </view>
-
-      <view class="today-sub">
-        <text class="today-sub-strong">平均每次 {{ avgPerFeeding }}ml</text>
-        <text class="today-sub-dot">·</text>
-        <text class="today-sub-muted">总计 {{ stats.today_amount || 0 }}ml</text>
-      </view>
-
-      <view class="today-progress">
-        <view class="today-progress-head">
-          <text class="today-progress-left">已喝 {{ todayConsumedMl }}ml</text>
-          <text class="today-progress-right">目标 {{ todayTargetMl }}ml</text>
-        </view>
-        <view class="today-progress-bar" :class="`tone-${amountProgressTone}`">
-          <view class="today-progress-fill" :style="{ width: consumptionPercent + '%' }"></view>
-          <view
-            v-if="expectedNowPercent"
-            class="today-progress-marker"
-            :style="{ left: expectedNowPercent + '%' }"
-          ></view>
-        </view>
-        <text class="today-progress-text">
-          已达 {{ consumptionPercent }}% · 按当前时间进度应≈ {{ expectedNowMl }}ml
-        </text>
-      </view>
-
-      <!-- 24小时喂奶时间轴：核心体验（分布 + 量差异） -->
-      <view class="today-timeline" v-if="todayCount > 0">
-        <view class="today-timeline-head">
-          <text class="today-timeline-title">24小时喂奶节奏</text>
-          <text class="today-timeline-sub">点卡片查看明细</text>
-        </view>
-
-        <view class="today-timeline-track">
-          <view class="today-timeline-line"></view>
-          <view v-if="nowDayPercent" class="today-timeline-now" :style="{ left: nowDayPercent + '%' }"></view>
-
-          <view
-            v-for="m in todayTimelineMarks"
-            :key="m.key"
-            class="today-timeline-mark"
-            :style="{ left: m.leftPercent + '%' }"
-          >
-            <view class="today-timeline-stick" :style="{ height: m.heightPx + 'px' }"></view>
-            <view class="today-timeline-dot" :style="{ width: m.dotPx + 'px', height: m.dotPx + 'px' }"></view>
-          </view>
-        </view>
-
-        <view class="today-timeline-axis">
-          <text class="axis-item">0</text>
-          <text class="axis-item">6</text>
-          <text class="axis-item">12</text>
-          <text class="axis-item">18</text>
-          <text class="axis-item">24</text>
-        </view>
-      </view>
-
-      <view class="today-next">
-        <view class="today-next-left">
-          <text class="today-next-label">下次喂奶时间</text>
-          <view class="today-next-clock-row">
-            <text v-if="nextFeedingDayLabel" class="today-next-day">{{ nextFeedingDayLabel }}</text>
-            <text class="today-next-countdown">{{ nextFeedingClockText }}</text>
-          </view>
-          <text class="today-next-since">{{ sinceLastFeedingText }}</text>
-          <text class="today-next-amount">下次建议 {{ nextSuggestedAmount }}ml</text>
-        </view>
-      </view>
-
-      <view class="today-hint">
-        <text class="today-hint-text">{{ insightDesc }}</text>
-        <view v-if="showAdviceBox && insightAdviceItems.length > 0" class="today-advice" @click.stop>
-          <text class="today-advice-title">科学建议</text>
-          <text
-            v-for="(t, idx) in insightAdviceItems"
-            :key="idx"
-            class="today-advice-item"
-          >· {{ t }}</text>
-        </view>
-        <text class="today-hint-disclaimer">仅供参考，异常请咨询医生</text>
-      </view>
+      </template>
+      </NbLoadingSwitch>
     </view>
     
     <!-- 投喂按钮 -->
     <view class="feed-button-large" @click="recordNextSuggested">
+      <view v-if="weaningFeedBadgeText" class="feed-badge" :class="weaningAutoSide">
+        <text class="feed-badge-text">{{ weaningFeedBadgeText }}</text>
+      </view>
       <text class="feed-button-text">{{ quickFeeding ? '记录中' : '投喂' }}</text>
+      <text v-if="!quickFeeding && nextSuggestedAmount > 0" class="feed-button-sub">{{ nextSuggestedAmount }}ml</text>
     </view>
 
     <!-- 撤销条：保存后 3 秒内可撤销 -->
-    <view v-if="undoVisible" class="undo-toast" @click.stop>
-      <text class="undo-text">已记录 {{ undoFeedingAmount }}ml</text>
+    <view v-if="undoVisible" class="undo-toast" :class="`tone-${undoTone}`" @click.stop>
+      <view class="undo-left">
+        <view class="undo-icon" aria-hidden="true">
+          <text class="undo-icon-text">{{ undoIconText }}</text>
+        </view>
+        <view class="undo-lines">
+          <text class="undo-title">{{ undoTitleText }}</text>
+          <text v-if="undoSubText" class="undo-sub">{{ undoSubText }}</text>
+        </view>
+      </view>
+
       <view class="undo-actions">
-        <text class="undo-action" @click="undoLastFeeding">撤销</text>
-        <text class="undo-action" @click="viewUndoFeeding">查看</text>
+        <view class="undo-btn primary" @click.stop="undoLastFeeding">撤销</view>
+        <view class="undo-btn" @click.stop="viewUndoFeeding">查看</view>
+      </view>
+    </view>
+
+    <!-- 状态说明（底部 Sheet）：解释不常驻首页，按需展开（更“苹果”） -->
+    <view v-if="showExplainModal" class="modal-overlay sheet" @click.self="closeExplainModal">
+      <view class="modal-content sheet" @click.stop @touchstart.stop>
+        <view class="modal-header">
+          <text class="modal-title">{{ homeStatusText }}</text>
+          <text class="close-btn" @click="closeExplainModal">×</text>
+        </view>
+
+        <view class="today-sub">
+          <text class="today-sub-strong">下次喂奶时间：{{ nextFeedingDayLabel ? (nextFeedingDayLabel + ' ') : '' }}{{ nextFeedingClockText }}</text>
+          <text v-if="hasNextFeeding" class="today-sub-muted">
+            <text v-if="nextCountdownMode === 'overdue'">已超时 {{ nextCountdownHMText }}</text>
+            <text v-else>{{ nextCountdownHMText }} 后给宝宝喂奶</text>
+          </text>
+          <text v-if="sinceLastDurationHMText" class="today-sub-muted">距上次喂奶已过去 {{ sinceLastDurationHMText }}</text>
+        </view>
+
+        <!-- 信息减法：把“建议本次奶量”放到说明 Sheet（主屏不常驻堆字） -->
+        <view v-if="nextSuggestedAmount > 0" class="suggest-card">
+          <text class="suggest-k">建议</text>
+          <text class="suggest-v">{{ nextSuggestedAmount }}ml</text>
+          <text v-if="suggestScoopsText" class="suggest-sub">{{ suggestScoopsText }}</text>
+          <text v-else-if="canShowScoopHint" class="suggest-sub suggest-link" @click="goToFormulaSpec">补充勺数换算</text>
+        </view>
+
+        <view class="today-progress" :class="`tone-${amountProgressTone}`" v-if="todayTargetMl > 0">
+          <view class="today-progress-head">
+            <text class="today-progress-left">今日 {{ todayConsumedMl }}ml</text>
+            <text class="today-progress-right">参考 {{ todayTargetMl }}ml</text>
+          </view>
+          <view class="today-progress-bar">
+            <view class="today-progress-fill" :style="{ width: todayConsumedPercent + '%' }"></view>
+            <view v-if="expectedNowPercent" class="today-progress-marker" :style="{ left: expectedNowPercent + '%' }"></view>
+          </view>
+          <view v-if="todayDeltaText" class="today-progress-delta-row">
+            <text class="today-progress-delta" :class="`d-${todayDeltaTone}`">{{ todayDeltaText }}</text>
+          </view>
+          <text v-if="expectedNowMl > 0" class="today-progress-text">按时间进度，此刻约 {{ expectedNowMl }}ml</text>
+        </view>
+
+        <view v-if="insightAdviceItems.length > 0" class="today-advice">
+          <text class="today-advice-title">下一步</text>
+          <text v-for="(it, idx) in insightAdviceItems.slice(0, 2)" :key="idx" class="today-advice-item">{{ it }}</text>
+        </view>
+
+        <text class="today-hint-disclaimer">仅供趋势参考，不替代医生建议</text>
+
+        <view class="modal-actions">
+          <button class="confirm-btn" @click="openTodayFromExplain">查看今日记录</button>
+        </view>
       </view>
     </view>
 
@@ -149,88 +256,130 @@
           <text class="close-btn" @click="closeTodayModal">×</text>
         </view>
 
-        <view class="today-modal-summary">
-          <text class="today-modal-summary-text">
-            {{ todayCount }} 次 · {{ stats.today_amount || 0 }}ml · 平均 {{ avgPerFeeding }}ml/次
-          </text>
-        </view>
+        <NbState v-if="todayModalLoading" embedded type="loading" title="加载中..." />
 
-        <view v-if="formulaMetaText" class="today-modal-meta">
-          <text class="today-modal-meta-text">{{ formulaMetaText }}</text>
-        </view>
+        <NbState
+          v-else-if="todayModalError"
+          embedded
+          type="error"
+          title="加载失败"
+          :desc="todayModalError"
+          actionText="重试"
+          @action="reloadTodayModal"
+        />
 
-        <!-- 24小时喂奶时间轴：看分布 + 量差异 -->
-        <view class="today-timeline" v-if="todayCount > 0">
-          <view class="today-timeline-head">
-            <text class="today-timeline-title">24小时喂奶节奏</text>
-            <text class="today-timeline-sub">点列表项可编辑</text>
+        <template v-else>
+          <view v-if="formulaMetaText" class="today-modal-meta">
+            <text class="today-modal-meta-text">{{ formulaMetaText }}</text>
           </view>
 
-          <view class="today-timeline-track">
-            <view class="today-timeline-line"></view>
-            <view v-if="nowDayPercent" class="today-timeline-now" :style="{ left: nowDayPercent + '%' }"></view>
+          <!-- 24小时喂奶时间轴：看分布 + 量差异 -->
+          <view v-if="todayCount > 0" class="today-timeline-wrap">
+            <FeedingTimeline24
+              :marks="todayTimelineMarks"
+              :selectedKey="selectedTimelineKey"
+              :nowMs="nowTickMs"
+              :summaryText="todayModalSummaryText"
+              :showNext="false"
+              @select="handleTodayTimelineSelect"
+            />
+          </view>
 
+          <view v-if="todayCount <= 0" class="today-modal-empty">
+            <text class="today-modal-empty-text">今天还没有记录</text>
+            <text class="today-modal-empty-sub">点下方“投喂”开始（误触可撤销）</text>
+          </view>
+
+          <scroll-view v-else class="today-modal-list" scroll-y>
             <view
-              v-for="m in todayTimelineMarks"
-              :key="m.key"
-              class="today-timeline-mark"
-              :style="{ left: m.leftPercent + '%' }"
+              v-for="f in todayFeedings"
+              :key="f.id"
+              class="today-swipe"
+              :class="{ open: swipeOpenFeedingKey === String(f.id) }"
+              @touchstart="onFeedingSwipeStart($event, f)"
+              @touchend="onFeedingSwipeEnd($event, f)"
+              @touchcancel="onFeedingSwipeEnd($event, f)"
             >
-              <view class="today-timeline-stick" :style="{ height: m.heightPx + 'px' }"></view>
-              <view class="today-timeline-dot" :style="{ width: m.dotPx + 'px', height: m.dotPx + 'px' }"></view>
+              <!-- 默认不渲染操作区，避免“未左滑就露出编辑/删除”与内容重叠（更像 iOS 交互） -->
+              <view
+                v-if="canEditFeeding(f) && swipeOpenFeedingKey === String(f.id)"
+                class="today-swipe-actions"
+              >
+                <view class="today-swipe-action edit" @click.stop="swipeEdit(f)">
+                  <text class="today-swipe-action-text">编辑</text>
+                </view>
+                <view class="today-swipe-action delete" @click.stop="swipeDelete(f)">
+                  <text class="today-swipe-action-text">删除</text>
+                </view>
+              </view>
+
+              <view class="today-swipe-content">
+                <view class="today-item" @click="handleFeedingRowTap(f)">
+                  <view class="today-item-left">
+                    <text class="today-item-time">{{ formatFeedingTime(f.feeding_time) }}</text>
+                    <text class="today-item-amount">{{ Number(f.amount || 0) }}ml</text>
+                    <view v-if="weaningTagTextForFeeding(f)" class="today-item-tag" :class="weaningTagClassForFeeding(f)">
+                      <text class="today-item-tag-text">{{ weaningTagTextForFeeding(f) }}</text>
+                    </view>
+                  </view>
+                  <text v-if="showFeedingUserName" class="today-item-user">{{ resolveMemberName(f.user_id) }}</text>
+                </view>
+              </view>
             </view>
+          </scroll-view>
+
+          <view class="modal-actions">
+            <button class="cancel-btn" @click="closeTodayModal">关闭</button>
+            <button class="confirm-btn" @click="goToDataDetail">查看数据</button>
           </view>
-
-          <view class="today-timeline-axis">
-            <text class="axis-item">0</text>
-            <text class="axis-item">6</text>
-            <text class="axis-item">12</text>
-            <text class="axis-item">18</text>
-            <text class="axis-item">24</text>
-          </view>
-        </view>
-
-        <view v-if="todayCount <= 0" class="today-modal-empty">
-          <text class="today-modal-empty-text">今天还没有记录</text>
-          <text class="today-modal-empty-sub">点下方“投喂”开始（误触可撤销）</text>
-        </view>
-
-        <scroll-view v-else class="today-modal-list" scroll-y>
-          <view
-            v-for="f in todayFeedings"
-            :key="f.id"
-            class="today-item"
-            @click="openDetail(f)"
-          >
-            <text class="today-item-time">{{ formatFeedingTime(f.feeding_time) }}</text>
-            <text class="today-item-amount">{{ Number(f.amount || 0) }}ml</text>
-            <text class="today-item-user">{{ resolveMemberName(f.user_id) }}</text>
-          </view>
-        </scroll-view>
-
-        <view class="modal-actions">
-          <button class="cancel-btn" @click="closeTodayModal">关闭</button>
-          <button class="confirm-btn" @click="goToDataDetail">查看数据</button>
-        </view>
+        </template>
       </view>
     </view>
 
-    <!-- 喂养记录详情/编辑 -->
-    <view
-      v-if="showDetailModal"
-      class="modal-overlay"
-      @click.self="closeDetailModal"
-    >
+	    <!-- 喂养记录详情/编辑 -->
+	    <view
+	      v-if="showDetailModal"
+	      class="modal-overlay"
+	      @click.self="closeDetailModal"
+	    >
       <view class="modal-content" @click.stop @touchstart.stop>
         <view class="modal-header">
           <text class="modal-title">喂养记录</text>
           <text class="close-btn" @click="closeDetailModal">×</text>
         </view>
 
-        <view class="detail-row">
-          <text class="detail-label">时间</text>
-          <text class="detail-value">{{ detailTimeText }}</text>
+        <view class="detail-row" :class="{ disabled: !canEditDetail }">
+          <text class="detail-label">日期</text>
+          <picker
+            class="detail-picker-wrap"
+            mode="date"
+            :value="detailDate"
+            :disabled="!canEditDetail"
+            @change="onDetailDateChange"
+          >
+            <view class="detail-picker">
+              <text class="detail-value">{{ detailDateText }}</text>
+              <text v-if="canEditDetail" class="detail-chev">›</text>
+            </view>
+          </picker>
         </view>
+
+        <view class="detail-row" :class="{ disabled: !canEditDetail }">
+          <text class="detail-label">时间</text>
+          <picker
+            class="detail-picker-wrap"
+            mode="time"
+            :value="detailClock"
+            :disabled="!canEditDetail"
+            @change="onDetailTimeChange"
+          >
+            <view class="detail-picker">
+              <text class="detail-value">{{ detailClockText }}</text>
+              <text v-if="canEditDetail" class="detail-chev">›</text>
+            </view>
+          </picker>
+        </view>
+
         <view class="detail-row">
           <text class="detail-label">记录人</text>
           <text class="detail-value">{{ detailUserText }}</text>
@@ -263,28 +412,71 @@
           <button class="danger-btn" :disabled="!canEditDetail || detailSaving" @click="deleteDetail">
             删除该记录
           </button>
-        </view>
-      </view>
-    </view>
-  </view>
-</template>
+	        </view>
+	      </view>
+	    </view>
 
-<script>
-import api from '@/utils/api'
-import { useUserStore } from '@/stores/user'
+	    <NbConfirmSheet
+	      :visible="confirmSheetVisible"
+	      :title="confirmSheetTitle"
+	      :desc="confirmSheetDesc"
+	      :confirmText="confirmSheetConfirmText"
+	      :cancelText="confirmSheetCancelText"
+	      :confirmVariant="confirmSheetVariant"
+	      :loading="confirmSheetLoading"
+	      @confirm="handleConfirmSheetConfirm"
+	      @cancel="handleConfirmSheetCancel"
+	    />
+	  </view>
+	</template>
+
+	<script>
+	import api from '@/utils/api'
+  import config from '@/utils/config.js'
+	import { useUserStore } from '@/stores/user'
 import { calcAgeInDays, formatBabyAgeText } from '@/utils/age'
 import { formatZodiacText } from '@/utils/zodiac'
+  import { parseAgeRangeToStage } from '@/utils/formula_stage'
+  import { applyCustomSpecIfMissing, buildCustomFormulaSpecKey, readCustomFormulaSpec } from '@/utils/custom_formula_spec'
+	import {
+    canUseSystemNotify,
+    getNotificationPermission,
+    getSystemNotifyEnabled,
+    isNotificationSupported,
+    isPageHidden,
+    isStandalonePwa,
+    sendSystemNotify,
+  } from '@/utils/system_notify'
+	import NbConfirmSheet from '@/components/NbConfirmSheet.vue'
+	import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
+  import NbState from '@/components/NbState.vue'
+  import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+  import NbSkeleton from '@/components/NbSkeleton.vue'
+  import NbSkeletonAvatar from '@/components/NbSkeletonAvatar.vue'
+  import FeedingTimeline24 from '@/components/FeedingTimeline24.vue'
 
-export default {
-  components: {},
-  data() {
-    return {
+	export default {
+	  components: { NbConfirmSheet, NbNetworkBanner, NbState, NbLoadingSwitch, NbSkeleton, NbSkeletonAvatar, FeedingTimeline24 },
+	  data() {
+	    return {
       currentBaby: {},
+      pageLoading: false,
+      errorText: '',
       todayFeedings: [],
       stats: {},
       familyMembers: [],
       selectedFormula: null,
       formulaSpec: null,
+      // 自定义冲泡规格（v1：本机存储，用于补齐官方缺失字段）
+      customFormulaSpecKey: '',
+      customFormulaSpec: null,
+      customWeaningOldKey: '',
+      customWeaningOldSpec: null,
+      customWeaningNewKey: '',
+      customWeaningNewSpec: null,
+      weaningPlan: null,
+      weaningOldSpec: null,
+      weaningNewSpec: null,
       recommendedAmount: {
         recommended: 150,
         daily_standard: 810,
@@ -297,8 +489,10 @@ export default {
       feedingSettings: null,
       nextFeedingClockText: '--:--',
       nextFeedingDayLabel: '',
-      sinceLastFeedingText: '暂无喂奶记录',
+      nextCountdownText: '--',
+      nextCountdownMode: 'remaining', // remaining | overdue
       showTodayModal: false,
+      showExplainModal: false,
       lastFeedingTimestampMs: null,
       nextFeedingTimestampMs: null,
       countdownTimer: null,
@@ -306,25 +500,33 @@ export default {
       remindDueFiredFor: null,
       nowTickMs: 0,
       recentFeedings: [],
+      selectedTimelineKey: '',
+      timelineSelectTimer: null,
+
+      // iOS 左滑操作（编辑/删除）
+      swipeOpenFeedingKey: '',
+      swipeStartX: 0,
+      swipeStartY: 0,
+      swipeStartKey: '',
 
       // 撤销条（保存后 3 秒内）
       undoVisible: false,
       undoFeeding: null,
+      undoMeta: null,
       undoTimer: null,
 
       // 详情/编辑
       showDetailModal: false,
       detailFeeding: null,
       detailAmount: '',
+      detailDate: '', // YYYY-MM-DD（picker value）
+      detailClock: '', // HH:mm（picker value）
+      detailOriginalMs: null,
       detailSaving: false,
 
       // WebSocket（多设备/多成员实时同步）
       socketTask: null,
       wsRefreshTimer: null,
-
-      // 管理员（运营后台）
-      isAdmin: false,
-      adminChecked: false,
 
       // 生长趋势（用于首页“科学判断”）
       growthStats: null,
@@ -333,10 +535,27 @@ export default {
       quickFeeding: false,
       lastFeedTapAtMs: 0,
 
-      // 避免 tabBar 首次进入 onShow 重复请求
-      hasLoaded: false,
-    }
-  },
+      // 今日抽屉：打开时主动刷新，避免“偶发空白/旧数据”
+      todayModalLoading: false,
+      todayModalError: '',
+
+      // 首页轻量引导（Setup Nudge）：按 baby 维度记忆已关闭的提示项
+      dismissedNudgeKeys: [],
+
+	      // 避免首次进入 onShow 重复请求（uni-app 生命周期：onLoad -> onShow）
+	      hasLoaded: false,
+
+	      // 统一 iOS 风格确认 Sheet（替代 uni.showModal）
+	      confirmSheetVisible: false,
+	      confirmSheetTitle: '',
+	      confirmSheetDesc: '',
+	      confirmSheetConfirmText: '确定',
+	      confirmSheetCancelText: '取消',
+	      confirmSheetVariant: 'primary', // primary | danger
+	      confirmSheetLoading: false,
+	      confirmSheetResolver: null,
+	    }
+	  },
   
   computed: {
     babyAgeText() {
@@ -348,12 +567,113 @@ export default {
     babyAge() {
       return calcAgeInDays(this.currentBaby?.birth_date)
     },
-    // 奶粉段位徽标：对 0-12 月场景，按月龄给出 1/2 段的轻提示
-    formulaStageBadge() {
-      const days = Number(this.babyAge || 0)
-      if (!Number.isFinite(days)) return '1'
-      return days < 180 ? '1' : '2'
-    },
+	    // 奶粉段位徽标：对 0-12 月场景，按月龄给出 1/2 段的轻提示
+	    formulaStageBadge() {
+	      // 优先使用用户已选择的段位（换段时更符合直觉）；缺失再用月龄兜底推断
+	      const stage = parseAgeRangeToStage(this.selectedFormula?.age_range)
+	      if (stage > 0) return String(stage)
+
+	      const days = Number(this.babyAge || 0)
+	      if (!Number.isFinite(days)) return '1'
+	      return days < 180 ? '1' : '2'
+	    },
+
+      effectiveCurrentSpec() {
+        // 当前奶粉的“有效规格”：官方优先，缺失字段用本机补充兜底。
+        const formula = this.selectedFormula || null
+        const official = this.formulaSpec || null
+        const custom = this.customFormulaSpec || null
+        if (!formula || !formula.brand_id) return official || custom || null
+        return applyCustomSpecIfMissing(official, custom).spec || official || custom || null
+      },
+
+      effectiveCurrentScoopMl() {
+        const ml = Number(this.effectiveCurrentSpec?.scoop_ml || 0)
+        return Number.isFinite(ml) && ml > 0 ? ml : 0
+      },
+
+      // 转奶期（7天）：首页仅做“轻提示”，详细下钻到转奶页
+      hasWeaningPlan() {
+        return !!(this.weaningPlan && this.weaningPlan.id)
+      },
+
+      weaningDurationDays() {
+        const d = Number(this.weaningPlan?.duration_days || 0)
+        return Number.isFinite(d) && d > 0 ? d : 7
+      },
+
+      weaningStartMs() {
+        const ms = this.parseTimeToMs(this.weaningPlan?.start_at)
+        return Number.isFinite(ms) && ms > 0 ? ms : 0
+      },
+
+      weaningEndMs() {
+        const start = this.weaningStartMs
+        if (!start) return 0
+        return start + this.weaningDurationDays * 24 * 60 * 60 * 1000
+      },
+
+      weaningCompleted() {
+        const end = this.weaningEndMs
+        if (!end) return false
+        const now = Number(this.nowTickMs || Date.now())
+        return Number.isFinite(now) && now >= end
+      },
+
+      weaningDayIndex() {
+        const start = this.weaningStartMs
+        if (!start) return 0
+        const now = Number(this.nowTickMs || Date.now())
+        if (!Number.isFinite(now) || now <= 0) return 0
+        const diff = Math.max(0, now - start)
+        const day = Math.floor(diff / (24 * 60 * 60 * 1000)) + 1
+        return Math.min(this.weaningDurationDays, Math.max(1, day))
+      },
+
+      weaningAutoEnabled() {
+        return this.hasWeaningPlan && this.weaningPlan?.status === 'active' && !this.weaningCompleted
+      },
+
+      weaningAutoSide() {
+        if (!this.weaningAutoEnabled) return ''
+        const plan = this.weaningPlan || null
+        const startMs = this.weaningStartMs
+        const oldId = Number(plan?.old_brand_id || 0)
+        const newId = Number(plan?.new_brand_id || 0)
+        if (!startMs || !oldId || !newId) return ''
+
+        const list = Array.isArray(this.recentFeedings) ? this.recentFeedings : []
+        const last = list.find((f) => {
+          const t = this.parseTimeToMs(f?.feeding_time)
+          if (!Number.isFinite(t) || t < startMs) return false
+          const bid = Number(f?.formula_brand_id || 0)
+          return bid === oldId || bid === newId
+        })
+        if (!last) return 'old'
+        return Number(last?.formula_brand_id || 0) === oldId ? 'new' : 'old'
+      },
+
+      weaningFeedBadgeText() {
+        if (!this.weaningAutoEnabled) return ''
+        return this.weaningAutoSide === 'old' ? '旧' : this.weaningAutoSide === 'new' ? '新' : ''
+      },
+
+      weaningPillText() {
+        if (!this.hasWeaningPlan) return ''
+        if (this.weaningCompleted) return '转奶完成'
+        if (this.weaningPlan?.status === 'paused') return '转奶已暂停'
+        const d = this.weaningDurationDays
+        const idx = this.weaningDayIndex
+        if (!idx || !d) return '转奶中'
+        return `转奶中 第${idx}/${d}天`
+      },
+
+      weaningPillClass() {
+        if (!this.hasWeaningPlan) return ''
+        if (this.weaningCompleted) return 'done'
+        if (this.weaningPlan?.status === 'paused') return 'paused'
+        return 'active'
+      },
 
     todayCount() {
       return Array.isArray(this.todayFeedings) ? this.todayFeedings.length : 0
@@ -364,6 +684,80 @@ export default {
       const total = Number(this.stats?.today_amount || 0)
       if (!n || n <= 0 || !Number.isFinite(total) || total <= 0) return 0
       return Math.round(total / n)
+    },
+
+    lastFeedingAmountText() {
+      const last = Array.isArray(this.recentFeedings) ? this.recentFeedings[0] : null
+      const n = Number(last?.amount || 0)
+      if (!Number.isFinite(n) || n <= 0) return ''
+      return `${Math.round(n)}ml`
+    },
+
+    lastFeedingClockText() {
+      const lastMs = Number(this.lastFeedingTimestampMs || 0)
+      if (!Number.isFinite(lastMs) || lastMs <= 0) return ''
+      const t = this.formatClockText(lastMs)
+      return t && t !== '--:--' ? t : ''
+    },
+
+    sinceLastDurationText() {
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const lastMs = Number(this.lastFeedingTimestampMs || 0)
+      if (!Number.isFinite(nowMs) || !Number.isFinite(lastMs) || lastMs <= 0) return ''
+      if (nowMs <= lastMs) return ''
+      return this.formatDurationText(nowMs - lastMs)
+    },
+
+    hasNextFeeding() {
+      const nowMs = Number(this.nowTickMs || Date.now())
+      let nextMs = Number(this.nextFeedingTimestampMs || 0)
+      if (!Number.isFinite(nextMs) || nextMs <= 0) {
+        const fallback = this.stats?.next_feeding_time
+        if (fallback) {
+          const parsed = this.parseTimeToMs(fallback)
+          nextMs = Number(parsed || 0)
+        }
+      }
+      return Number.isFinite(nowMs) && nowMs > 0 && Number.isFinite(nextMs) && nextMs > 0
+    },
+
+    nextCountdownHMText() {
+      if (!this.hasNextFeeding) return '--:--'
+      const nowMs = Number(this.nowTickMs || Date.now())
+      let nextMs = Number(this.nextFeedingTimestampMs || 0)
+      if (!Number.isFinite(nextMs) || nextMs <= 0) {
+        const fallback = this.stats?.next_feeding_time
+        const parsed = fallback ? this.parseTimeToMs(fallback) : null
+        nextMs = Number(parsed || 0)
+      }
+      if (!Number.isFinite(nowMs) || !Number.isFinite(nextMs) || nextMs <= 0) return '--:--'
+      return this.formatDurationHMText(Math.abs(nextMs - nowMs))
+    },
+
+    sinceLastDurationHMText() {
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const lastMs = Number(this.lastFeedingTimestampMs || 0)
+      if (!Number.isFinite(nowMs) || !Number.isFinite(lastMs) || lastMs <= 0) return ''
+      if (nowMs <= lastMs) return ''
+      return this.formatDurationHMText(nowMs - lastMs)
+    },
+
+    homeStatusText() {
+      if (this.todayCount <= 0) return '今天还没记录'
+
+      const interval = this.getIntervalInsight()
+      if (interval?.status === 'overdue') return '该喂奶了'
+      if (interval?.status === 'frequent') {
+        if (interval.severity === 'severe') return '记录过密'
+        return '间隔偏短'
+      }
+      if (interval?.status === 'sparse') return '间隔偏长'
+      if (interval?.status === 'irregular') return '节奏波动'
+
+      const feedingStatus = this.feedingStatusForHome()
+      if (feedingStatus === 'low') return '今日偏少'
+      if (feedingStatus === 'high') return '今日偏多'
+      return '节奏正常'
     },
 
     nextSuggestedAmount() {
@@ -423,76 +817,6 @@ export default {
       return lv
     },
 
-    insightLabel() {
-      const lv = String(this.insightLevel || '')
-      if (lv === 'unknown') return '待记录'
-      if (lv === 'excellent') return '优'
-      if (lv === 'good') return '良'
-      if (lv === 'attention') return '需关注'
-      return '警示'
-    },
-
-    insightDesc() {
-      if (this.todayCount <= 0) return '今天还没有记录，点“投喂”快速开始（误触可撤销）'
-
-      const interval = this.getIntervalInsight()
-      const intervalTail = interval?.text ? `；${interval.text}` : ''
-      const prefix = this.getInsightPrefix(interval)
-
-      const rec = this.recommendedAmount || {}
-      const consumed = Number(rec.daily_consumed || 0)
-      const standard = Number(rec.daily_standard || 0)
-      const dayProgress = this.getDayProgress()
-      const feedingStatus = this.feedingStatusForHome()
-
-      if (interval?.status === 'overdue') {
-        return `${prefix}${interval.text}；可先按推荐量继续记录（下次建议约 ${this.nextSuggestedAmount}ml）`
-      }
-
-      // 过密喂奶是高风险信号：必须直接讲清楚原因与下一步，避免“标题警示但正文仍说正常”造成误导。
-      if (interval?.status === 'frequent') {
-        if (interval.severity === 'severe') {
-          return `${prefix}${interval.text}；短时间多次投喂通常不科学，可能是误触/重复记录。建议先打开“今日喂奶记录”核对并撤销多余记录；若宝宝出现吐奶/腹胀/精神差等异常，请及时咨询医生`
-        }
-        if (interval.severity === 'moderate') {
-          return `${prefix}${interval.text}；若不是补喂/吐奶等特殊情况，建议按设置间隔执行，避免“越喂越乱”`
-        }
-      }
-
-      // “今天”的判断：按时间进度做解释，避免上午就显示“偏低”制造焦虑。
-      if (standard > 0 && (feedingStatus === 'low' || feedingStatus === 'high')) {
-        const delta = consumed - standard
-        const abs = Math.abs(delta)
-        const dir = delta < 0 ? '少' : '多'
-
-        if (dayProgress < 0.85) {
-          return `${prefix}今天进度偏${feedingStatus === 'low' ? '慢' : '快'}（暂比参考${dir}约${abs}ml），按推荐量继续记录即可${intervalTail}`
-        }
-
-        const tip = feedingStatus === 'low'
-          ? '可以优先按推荐量补齐今日差距'
-          : '若宝宝状态良好可维持；频繁吐奶/不适建议咨询医生'
-        return `${prefix}今日奶量偏${feedingStatus === 'low' ? '低' : '高'}（比参考${dir}约${abs}ml），${tip}${intervalTail}`
-      }
-
-      // 再补“科学”解释：有生长数据则给趋势判断；无则引导补录。
-      const g = this.growthStats
-      if (!g) return `${prefix}今天进度正常；补充身高体重后可生成更准确的综合判断${intervalTail}`
-
-      const milkStatus = this.compareToRange(Number(g.daily_avg_milk || 0), this.parseRefRange(g?.reference?.milk))
-      const wgStatus = this.compareToRange(Number(g.daily_weight_gain || 0), this.parseRefRange(g?.reference?.weight_gain))
-      const hgStatus = this.compareToRange(Number(g.daily_height_gain || 0), this.parseRefRange(g?.reference?.height_gain))
-
-      const parts = []
-      if (milkStatus !== 'unknown') parts.push(`近7天奶量${milkStatus === 'ok' ? '正常' : (milkStatus === 'low' ? '偏低' : '偏高')}`)
-      if (wgStatus !== 'unknown') parts.push(`增重${wgStatus === 'ok' ? '正常' : (wgStatus === 'low' ? '偏低' : '偏高')}`)
-      if (hgStatus !== 'unknown') parts.push(`增高${hgStatus === 'ok' ? '正常' : (hgStatus === 'low' ? '偏低' : '偏高')}`)
-
-      if (parts.length === 0) return `${prefix}暂缺生长记录：补录身高体重后，才能对“奶量与生长关系”做更科学判断${intervalTail}`
-      if (parts.every((x) => x.includes('正常'))) return `${prefix}今天进度正常，近7天生长趋势也在参考范围内${intervalTail}`
-      return `${prefix}今天进度正常；${parts.join('，')}（点击查看详情）${intervalTail}`
-    },
-
     insightAdviceItems() {
       if (this.todayCount <= 0) return []
 
@@ -549,23 +873,26 @@ export default {
     },
 
     formulaMetaText() {
-      const name = this.selectedFormula?.brand?.name_cn || this.selectedFormula?.brand_name || ''
       const stage = this.formulaStageBadge
       const scoops = this.railScoopsText
       const parts = []
+
+      const plan = this.weaningPlan || null
+      if (plan) {
+        const oldName = plan?.old_brand?.name_cn || ''
+        const newName = plan?.new_brand?.name_cn || ''
+        const label = (oldName || newName) ? `转奶：${oldName || '旧奶粉'}→${newName || '新奶粉'}` : '转奶期'
+        parts.push(label)
+        if (stage) parts.push(`${stage}段`)
+        // 转奶期中勺数可能因旧/新规格不同而变化，这里不常驻展示，避免误导
+        return parts.join(' · ')
+      }
+
+      const name = this.selectedFormula?.brand?.name_cn || this.selectedFormula?.brand_name || ''
       if (name) parts.push(`奶粉：${name}`)
       if (stage) parts.push(`${stage}段`)
       if (scoops) parts.push(scoops)
       return parts.join(' · ')
-    },
-
-    consumptionPercent() {
-      const standard = Number(this.recommendedAmount?.daily_standard || 0)
-      const consumed = Number(this.recommendedAmount?.daily_consumed || 0)
-      if (!standard || standard <= 0) return 0
-      const raw = (consumed / standard) * 100
-      const clamped = Math.max(0, Math.min(100, raw))
-      return clamped.toFixed(1)
     },
 
     todayConsumedMl() {
@@ -598,73 +925,149 @@ export default {
       return clamped.toFixed(1)
     },
 
+    todayConsumedPercent() {
+      const standard = this.todayTargetMl
+      const consumed = this.todayConsumedMl
+      if (!standard || standard <= 0) return '0'
+      const raw = (consumed / standard) * 100
+      const clamped = Math.max(0, Math.min(100, raw))
+      return clamped.toFixed(1)
+    },
+
+    todayDeltaTone() {
+      const standard = this.todayTargetMl
+      if (!standard || standard <= 0) return 'ok'
+      const delta = this.todayConsumedMl - standard
+      if (delta > 0) return 'high'
+      if (delta < 0) return 'low'
+      return 'ok'
+    },
+
+    todayDeltaText() {
+      const standard = this.todayTargetMl
+      if (!standard || standard <= 0) return ''
+      const delta = this.todayConsumedMl - standard
+      const abs = Math.abs(delta)
+      if (!Number.isFinite(abs) || abs <= 0) return '与参考一致'
+      return delta > 0 ? `超出参考 ${abs}ml` : `距参考还差 ${abs}ml`
+    },
+
     amountProgressTone() {
       const s = this.feedingStatusForHome()
       if (s === 'low' || s === 'high') return s
       return 'ok'
     },
 
-    showAdviceBox() {
-      const lv = String(this.insightLevel || '')
-      return lv === 'attention' || lv === 'alert'
+    timelineSummaryText() {
+      return `${this.todayCount}次 · ${this.stats?.today_amount || 0}ml`
     },
 
-    nowDayPercent() {
-      const nowMs = Number(this.nowTickMs || Date.now())
-      const d = new Date(nowMs)
-      if (Number.isNaN(d.getTime())) return ''
-      const minutes = d.getHours() * 60 + d.getMinutes()
-      const p = (minutes / 1440) * 100
-      const clamped = Math.max(0, Math.min(100, p))
-      return clamped.toFixed(2)
+    todayModalSummaryText() {
+      return `${this.todayCount}次 · ${this.stats?.today_amount || 0}ml`
+    },
+
+    showFeedingUserName() {
+      const members = Array.isArray(this.familyMembers) ? this.familyMembers : []
+      return members.length > 1
+    },
+
+    latestFeedingLabel() {
+      const list = Array.isArray(this.todayFeedings) ? this.todayFeedings : []
+      const last = list[0] || null
+      if (!last) return ''
+      const ms = this.parseTimeToMs(last?.feeding_time)
+      if (!Number.isFinite(ms) || ms <= 0) return ''
+      const amount = Number(last?.amount || 0)
+      const amountText = Number.isFinite(amount) && amount > 0 ? `${Math.round(amount)}ml` : ''
+      const t = this.formatClockText(ms)
+      if (!t || t === '--:--') return ''
+      return amountText ? `${t} · ${amountText}` : t
     },
 
     todayTimelineMarks() {
       const list = Array.isArray(this.todayFeedings) ? this.todayFeedings : []
       if (list.length <= 0) return []
 
-      const points = list
-        .map((f, idx) => {
-          const ms = this.parseTimeToMs(f?.feeding_time)
-          if (!Number.isFinite(ms) || ms <= 0) return null
-          const d = new Date(ms)
-          if (Number.isNaN(d.getTime())) return null
-          const minutes = d.getHours() * 60 + d.getMinutes()
-          const leftPercent = (minutes / 1440) * 100
-          const amount = Number(f?.amount || 0)
+      const showUser = Array.isArray(this.familyMembers) && this.familyMembers.length > 1
+
+      // 以“分钟”为粒度：更贴近真实分布；同一分钟多次记录用 badge 聚合，气泡里展示多行。
+      const buckets = new Map()
+      let latestMs = 0
+      for (const f of list) {
+        const ms = this.parseTimeToMs(f?.feeding_time)
+        if (!Number.isFinite(ms) || ms <= 0) continue
+        if (ms > latestMs) latestMs = ms
+        const d = new Date(ms)
+        if (Number.isNaN(d.getTime())) continue
+        const minutes = d.getHours() * 60 + d.getMinutes()
+        const arr = buckets.get(minutes) || []
+        arr.push({ feeding: f, ms })
+        buckets.set(minutes, arr)
+      }
+
+      const marks = []
+      const sortedBuckets = Array.from(buckets.keys()).sort((a, b) => a - b)
+      for (const minutes of sortedBuckets) {
+        const arr = (buckets.get(minutes) || []).sort((x, y) => x.ms - y.ms)
+        if (arr.length <= 0) continue
+        const leftPercent = Math.max(0, Math.min(100, (Number(minutes) / 1440) * 100))
+        const isLatest = arr.some((it) => it?.ms === latestMs)
+
+        const items = arr.map((it, idx) => {
+          const f = it.feeding || {}
+          const amount = Number(f.amount || 0)
+          const timeText = this.formatClockText(it.ms)
+          const amountText = `${Number.isFinite(amount) ? Math.round(amount) : 0}ml`
+          const userText = showUser ? (this.resolveMemberName(f.user_id) || '') : ''
+          const tagText = this.weaningTagTextForFeeding(f) || ''
           return {
-            key: f?.id ? String(f.id) : `idx-${idx}`,
-            leftPercent: Math.max(0, Math.min(100, leftPercent)),
-            amount: Number.isFinite(amount) ? amount : 0,
+            key: f?.id ? String(f.id) : `${minutes}-${idx}`,
+            timeText,
+            amountText,
+            userText,
+            tagText,
           }
         })
-        .filter(Boolean)
 
-      if (points.length <= 0) return []
+        marks.push({
+          key: `m-${minutes}`,
+          leftPercent: leftPercent.toFixed(2),
+          count: items.length,
+          items,
+          isLatest,
+        })
+      }
 
-      const amounts = points.map((p) => Math.max(0, Math.min(300, Number(p.amount || 0))))
-      const min = Math.min(...amounts)
-      const max = Math.max(...amounts)
-      const span = Math.max(1, max - min)
-
-      return points.map((p, idx) => {
-        const a = Math.max(0, Math.min(300, Number(p.amount || 0)))
-        const t = points.length <= 1 ? 0.5 : (a - min) / span
-        const heightPx = Math.round(6 + t * 14) // 6-20px
-        const dotPx = Math.round(6 + t * 6) // 6-12px
-        return {
-          key: p.key || `p-${idx}`,
-          leftPercent: p.leftPercent.toFixed(2),
-          heightPx,
-          dotPx,
-          amount: a,
-        }
-      })
+      return marks
     },
 
     undoFeedingAmount() {
       const n = Number(this.undoFeeding?.amount || 0)
       return Number.isFinite(n) ? n : 0
+    },
+
+    undoTone() {
+      const t = String(this.undoMeta?.tone || 'ok')
+      return t === 'warn' || t === 'danger' ? t : 'ok'
+    },
+
+    undoIconText() {
+      const t = this.undoTone
+      if (t === 'danger') return '!'
+      if (t === 'warn') return '!'
+      return '✓'
+    },
+
+    undoTitleText() {
+      const title = String(this.undoMeta?.title || '').trim()
+      if (title) return title
+      const n = this.undoFeedingAmount
+      return n > 0 ? `已记录 ${n}ml` : '已记录'
+    },
+
+    undoSubText() {
+      const sub = String(this.undoMeta?.sub || '').trim()
+      return sub || ''
     },
 
     canEditDetail() {
@@ -678,13 +1081,27 @@ export default {
       return m?.role === 'admin'
     },
 
-    detailTimeText() {
-      const t = this.detailFeeding?.feeding_time
-      if (!t) return '--'
-      const d = new Date(String(t).replace(' ', 'T'))
-      if (Number.isNaN(d.getTime())) return String(t)
-      const hh = String(d.getHours()).padStart(2, '0')
-      const mm = String(d.getMinutes()).padStart(2, '0')
+    detailDateText() {
+      const s = String(this.detailDate || '').trim()
+      if (!s) return '--'
+      const m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/)
+      if (!m) return s
+      const y = Number(m[1])
+      const mo = Number(m[2])
+      const da = Number(m[3])
+      if (![y, mo, da].every((x) => Number.isFinite(x))) return s
+      const now = new Date()
+      if (y !== now.getFullYear()) return `${y}年${mo}月${da}日`
+      return `${mo}月${da}日`
+    },
+
+    detailClockText() {
+      const s = String(this.detailClock || '').trim()
+      if (!s) return '--:--'
+      const m = s.match(/^(\\d{1,2}):(\\d{1,2})$/)
+      if (!m) return s
+      const hh = String(Math.max(0, Math.min(23, Number(m[1])))).padStart(2, '0')
+      const mm = String(Math.max(0, Math.min(59, Number(m[2])))).padStart(2, '0')
       return `${hh}:${mm}`
     },
 
@@ -697,47 +1114,191 @@ export default {
     },
 
     railScoopsText() {
-      const ml = Number(this.formulaSpec?.scoop_ml || 0)
+      const ml = Number(this.effectiveCurrentScoopMl || 0)
       const amount = Number(this.recommendedAmount?.recommended || 0)
       if (!ml || ml <= 0 || !amount || amount <= 0) return ''
       const raw = amount / ml
       const rounded = Math.round(raw * 2) / 2
       return `${rounded}勺/次`
-    }
+    },
+
+    suggestScoopsText() {
+      const amount = Number(this.nextSuggestedAmount || 0)
+      if (!Number.isFinite(amount) || amount <= 0) return ''
+      const t = this.formatScoopsForAmount(amount)
+      return t ? `约 ${t}` : ''
+    },
+
+    canShowScoopHint() {
+      // 仅在“已绑定奶粉但缺少勺数换算”时提示补充入口（放在二级说明 Sheet，避免首页噪音）。
+      const hasFormula = !!(this.selectedFormula && this.selectedFormula.brand_id)
+      if (!hasFormula) return false
+      return Number(this.effectiveCurrentScoopMl || 0) <= 0
+    },
+
+    // 首页轻量引导（Setup Nudge）：只显示“下一步最短路径”中的一条，且可关闭。
+    setupNudge() {
+      const babyId = this.currentBaby?.id
+      if (!babyId) return null
+
+      const dismissed = new Set((Array.isArray(this.dismissedNudgeKeys) ? this.dismissedNudgeKeys : []).map(String))
+      const items = []
+
+      // 1) 先把“提醒”打开（否则用户会以为产品不工作）
+      const fs = this.feedingSettings || null
+      if (fs && fs.reminder_enabled === false) {
+        items.push({
+          key: 'reminder_on',
+          tone: 'info',
+          icon: '!',
+          title: '开启提醒',
+          desc: '到点会提示你下次喂奶（应用内）',
+          actionText: '去开启',
+          action: 'feeding_settings',
+          focus: 'reminder',
+        })
+      }
+
+      // 2) 系统通知：退到后台也能弹（受浏览器/系统限制）
+      const reminderOn = !fs || fs.reminder_enabled !== false
+      if (reminderOn && isNotificationSupported()) {
+        const perm = String(getNotificationPermission() || 'default')
+        const enabled = !!getSystemNotifyEnabled()
+        const effective = enabled && perm === 'granted'
+        if (!effective) {
+          const ios = this.isIOSPlatform()
+          const standalone = isStandalonePwa()
+          if (perm === 'denied') {
+            items.push({
+              key: 'system_notify',
+              tone: 'warn',
+              icon: '!',
+              title: '通知权限已关闭',
+              desc: '需要在系统/浏览器的站点设置里重新允许',
+              actionText: '查看',
+              action: 'help_notify',
+            })
+          } else if (ios && !standalone) {
+            items.push({
+              key: 'system_notify',
+              tone: 'info',
+              icon: 'i',
+              title: '后台提醒更稳定',
+              desc: 'iPhone 通常需先“添加到主屏幕”再开启系统通知',
+              actionText: '查看',
+              action: 'help_notify',
+            })
+          } else {
+            items.push({
+              key: 'system_notify',
+              tone: 'info',
+              icon: 'i',
+              title: '允许系统通知',
+              desc: '退到后台也能提醒你',
+              actionText: '去开启',
+              action: 'feeding_settings',
+              focus: 'notify',
+            })
+          }
+        }
+      }
+
+      // 3) 已绑定但缺“勺数换算”：把入口提前到首页（仍然很轻）
+      if (this.canShowScoopHint) {
+        items.push({
+          key: 'scoop_hint',
+          tone: 'info',
+          icon: 'i',
+          title: '补充勺数换算',
+          desc: '用于显示“约几勺”与更准确记录',
+          actionText: '去补充',
+          action: 'formula_spec',
+        })
+      }
+
+      // 4) 绑定奶粉（可选）：让“勺数/冲泡要求”更完整
+      if (!(this.selectedFormula && this.selectedFormula.brand_id)) {
+        items.push({
+          key: 'pick_formula',
+          tone: 'info',
+          icon: 'i',
+          title: '选择奶粉（可选）',
+          desc: '显示段数、冲泡要求与勺数换算',
+          actionText: '去选择',
+          action: 'formula_select',
+        })
+      }
+
+      // 5) 投喂偏好：微调推荐量（低风险、可随时改）
+      if (!this.userPreference) {
+        items.push({
+          key: 'preference',
+          tone: 'info',
+          icon: 'i',
+          title: '设置投喂偏好',
+          desc: '让推荐量更贴合你们的习惯',
+          actionText: '去设置',
+          action: 'preference',
+        })
+      }
+
+      const next = items.find((it) => it && it.key && !dismissed.has(String(it.key)))
+      return next || null
+    },
   },
   
   onLoad() {
-    this.loadData()
+    const userStore = useUserStore()
+    if (!userStore.token) {
+      // H5 可能出现“直接打开首页路由”的情况；未登录时不发起受保护请求，直接回登录页。
+      try {
+        const msg = uni.getStorageSync('nb_auth_notice')
+        if (!msg) uni.setStorageSync('nb_auth_notice', '请先登录')
+      } catch {}
+      uni.reLaunch({ url: '/pages/login/index' })
+      return
+    }
+    this.onNbRetry()
     this.startCountdown()
   },
 
   async onShow() {
-    // tabBar 页：首次进入由 onLoad 拉取；后续从设置/详情返回时再刷新，确保口径一致
+    const userStore = useUserStore()
+    if (!userStore.token) {
+      try {
+        const msg = uni.getStorageSync('nb_auth_notice')
+        if (!msg) uni.setStorageSync('nb_auth_notice', '请先登录')
+      } catch {}
+      uni.reLaunch({ url: '/pages/login/index' })
+      return
+    }
+
+    // 首次进入由 onLoad 拉取；后续从设置/详情返回时再刷新，确保口径一致
     if (!this.hasLoaded) {
       this.hasLoaded = true
       return
     }
-
-    const userStore = useUserStore()
     const baby = userStore.currentBaby || null
     if (baby?.id && String(baby.id) !== String(this.currentBaby?.id || '')) {
       this.currentBaby = baby
+      this.syncDismissedHomeNudges()
     }
     if (!this.currentBaby?.id) {
       await this.loadData()
       return
     }
 
-    await Promise.all([
-      this.loadFeedings(),
-      this.loadStats(),
-      this.loadGrowthStats(),
-      this.loadFeedingSettings(),
-      this.loadSelectedFormula(),
-      this.loadFormulaSpec(),
-      this.loadFamilyMembers(),
-    ])
-  },
+	    await Promise.all([
+	      this.loadFeedings(),
+	      this.loadStats(),
+	      this.loadGrowthStats(),
+	      this.loadFeedingSettings(),
+	      this.loadSelectedFormula(),
+	      this.loadFormulaSpec(),
+	      this.loadWeaningPlan(),
+	      this.loadFamilyMembers(),
+	    ])
+	  },
   
   onUnload() {
     if (this.countdownTimer) {
@@ -747,10 +1308,142 @@ export default {
       clearTimeout(this.undoTimer)
       this.undoTimer = null
     }
+    if (this.timelineSelectTimer) {
+      clearTimeout(this.timelineSelectTimer)
+      this.timelineSelectTimer = null
+    }
     this.closeWs()
   },
   
   methods: {
+    async onNbRetry() {
+      if (this.pageLoading) return
+      this.pageLoading = true
+      this.errorText = ''
+      try {
+        await this.loadData({ critical: true })
+      } catch (e) {
+        this.errorText = e?.message || '加载失败'
+      } finally {
+        this.pageLoading = false
+      }
+    },
+
+    // -------- Setup Nudge（按 baby 维度记忆已关闭的提示项）--------
+    getHomeNudgeStorageKey(babyId) {
+      const id = String(babyId || this.currentBaby?.id || '').trim()
+      if (!id) return ''
+      return `nb_home_nudge_dismissed_v1:${id}`
+    },
+
+    syncDismissedHomeNudges() {
+      const babyId = this.currentBaby?.id
+      const key = this.getHomeNudgeStorageKey(babyId)
+      if (!key) {
+        this.dismissedNudgeKeys = []
+        return
+      }
+      let raw = ''
+      try {
+        raw = uni.getStorageSync(key)
+      } catch {
+        raw = ''
+      }
+      let arr = []
+      if (Array.isArray(raw)) {
+        arr = raw
+      } else if (typeof raw === 'string' && raw.trim()) {
+        try {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed)) arr = parsed
+        } catch {
+          arr = raw.split(',')
+        }
+      }
+      const next = Array.from(new Set(arr.map((x) => String(x || '').trim()).filter(Boolean)))
+      this.dismissedNudgeKeys = next
+    },
+
+    persistDismissedHomeNudges() {
+      const babyId = this.currentBaby?.id
+      const key = this.getHomeNudgeStorageKey(babyId)
+      if (!key) return
+      const arr = Array.isArray(this.dismissedNudgeKeys) ? this.dismissedNudgeKeys : []
+      try {
+        uni.setStorageSync(key, JSON.stringify(arr))
+      } catch {}
+    },
+
+    dismissSetupNudge(key) {
+      const k = String(key || '').trim()
+      if (!k) return
+      const set = new Set((Array.isArray(this.dismissedNudgeKeys) ? this.dismissedNudgeKeys : []).map(String))
+      set.add(k)
+      this.dismissedNudgeKeys = Array.from(set)
+      this.persistDismissedHomeNudges()
+    },
+
+    handleSetupNudgeTap(nudge) {
+      const n = nudge || {}
+      const action = String(n.action || '')
+      if (action === 'feeding_settings') {
+        this.goToFeedingSettings(n.focus)
+        return
+      }
+      if (action === 'formula_select') {
+        this.goToFormulaSelect()
+        return
+      }
+      if (action === 'formula_spec') {
+        this.goToFormulaSpec()
+        return
+      }
+      if (action === 'preference') {
+        this.goToPreference()
+        return
+      }
+      if (action === 'help_notify') {
+        this.goToHelp('notify')
+        return
+      }
+    },
+
+    isIOSPlatform() {
+      try {
+        const sys = uni.getSystemInfoSync()
+        const p = String(sys?.platform || sys?.osName || '').toLowerCase()
+        return p.includes('ios') || p.includes('iphone') || p.includes('ipad')
+      } catch {
+        return false
+      }
+    },
+
+    goToFeedingSettings(focus) {
+      const babyId = this.currentBaby?.id
+      if (!babyId) return
+      const f = String(focus || '').trim()
+      const q = f ? `&focus=${encodeURIComponent(f)}` : ''
+      uni.navigateTo({ url: `/pages/feeding-settings/index?babyId=${babyId}${q}` })
+    },
+
+    goToFormulaSelect() {
+      const babyId = this.currentBaby?.id
+      if (!babyId) return
+      uni.navigateTo({ url: `/pages/formula-select/index?babyId=${babyId}` })
+    },
+
+    goToPreference() {
+      const babyId = this.currentBaby?.id
+      if (!babyId) return
+      uni.navigateTo({ url: `/pages/preference/index?babyId=${babyId}` })
+    },
+
+    goToHelp(topic) {
+      const t = String(topic || '').trim()
+      const q = t ? `?topic=${encodeURIComponent(t)}` : ''
+      uni.navigateTo({ url: `/pages/help/index${q}` })
+    },
+
     parseRefRange(text) {
       const s = String(text || '').trim()
       const m = s.match(/(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)/)
@@ -819,19 +1512,20 @@ export default {
       return `${hh}:${mm}`
     },
 
-    formatDayLabel(targetMs, nowMs) {
-      if (!Number.isFinite(targetMs) || !Number.isFinite(nowMs)) return ''
-      const t = new Date(targetMs)
-      const n = new Date(nowMs)
-      if (Number.isNaN(t.getTime()) || Number.isNaN(n.getTime())) return ''
-      const tUTC = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())
-      const nUTC = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate())
-      const diffDays = Math.round((tUTC - nUTC) / 86400000)
-      if (diffDays === 0) return '今天'
-      if (diffDays === 1) return '明天'
-      if (diffDays === 2) return '后天'
-      return `${t.getMonth() + 1}月${t.getDate()}日`
-    },
+	    formatDayLabel(targetMs, nowMs) {
+	      if (!Number.isFinite(targetMs) || !Number.isFinite(nowMs)) return ''
+	      const t = new Date(targetMs)
+	      const n = new Date(nowMs)
+	      if (Number.isNaN(t.getTime()) || Number.isNaN(n.getTime())) return ''
+	      const tUTC = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())
+	      const nUTC = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate())
+	      const diffDays = Math.round((tUTC - nUTC) / 86400000)
+	      // iOS 风格信息减法：今天不重复显示“今天”，仅在跨天时提示“明天/后天”。
+	      if (diffDays === 0) return ''
+	      if (diffDays === 1) return '明天'
+	      if (diffDays === 2) return '后天'
+	      return `${t.getMonth() + 1}月${t.getDate()}日`
+	    },
 
     formatDurationText(ms) {
       const sec = Math.max(0, Math.floor(Number(ms || 0) / 1000))
@@ -844,6 +1538,17 @@ export default {
       if (hours > 0) return `${hours}小时${minutes}分`
       if (minutes > 0) return `${minutes}分`
       return `${seconds}秒`
+    },
+
+    formatDurationHMText(ms) {
+      const sec = Math.max(0, Math.floor(Number(ms || 0) / 1000))
+      if (!Number.isFinite(sec)) return '--:--'
+      const totalMin = Math.floor(sec / 60)
+      const hours = Math.floor(totalMin / 60)
+      const minutes = totalMin % 60
+      const hh = String(hours).padStart(2, '0')
+      const mm = String(minutes).padStart(2, '0')
+      return `${hh}:${mm}`
     },
 
     getFeedingSettingsSnapshot() {
@@ -1070,7 +1775,22 @@ export default {
     },
 
     formatScoopsForAmount(amountMl) {
-      const ml = Number(this.formulaSpec?.scoop_ml || 0)
+      // 转奶期进行中：勺数按“本次建议的旧/新奶粉规格”计算，缺失字段用本机补充兜底。
+      let formula = this.selectedFormula || null
+      let official = this.formulaSpec || null
+      if (this.weaningAutoEnabled && this.weaningPlan) {
+        const plan = this.weaningPlan
+        const side = this.weaningAutoSide
+        if (side === 'old') {
+          formula = { brand_id: plan.old_brand_id, series_name: plan.old_series_name || '', age_range: plan.old_age_range || '' }
+          official = this.weaningOldSpec || null
+        } else if (side === 'new') {
+          formula = { brand_id: plan.new_brand_id, series_name: plan.new_series_name || '', age_range: plan.new_age_range || '' }
+          official = this.weaningNewSpec || this.formulaSpec || null
+        }
+      }
+      const spec = this.getEffectiveSpecForFormula(formula, official)
+      const ml = Number(spec?.scoop_ml || 0)
       const amount = Number(amountMl || 0)
       if (!ml || ml <= 0 || !amount || amount <= 0) return ''
       const raw = amount / ml
@@ -1122,19 +1842,11 @@ export default {
       return delta
     },
 
-    async checkAdmin() {
-      if (this.adminChecked) return
-      this.adminChecked = true
-      try {
-        await api.get('/admin/health-standards/versions')
-        this.isAdmin = true
-      } catch {
-        this.isAdmin = false
-      }
-    },
-    async loadData() {
+    async loadData(opts = {}) {
+      const critical = !!opts.critical
       const userStore = useUserStore()
       this.currentBaby = userStore.currentBaby || {}
+      this.syncDismissedHomeNudges()
 
       // 兜底：若本地未选择宝宝，但账号下已有宝宝，则自动选择第一个（降低首次登录/换设备成本）
       if (!this.currentBaby.id) {
@@ -1144,33 +1856,29 @@ export default {
           if (first && first.id) {
             this.currentBaby = first
             userStore.setCurrentBaby(first)
+            this.syncDismissedHomeNudges()
           }
-        } catch {
-          // 忽略：未登录/网络错误将由后续 API 统一处理
+        } catch (e) {
+          if (critical) throw e
         }
       }
       
       if (!this.currentBaby.id) {
-        // 如果没有当前宝宝，跳转到宝宝资料页
-        uni.navigateTo({
-          url: '/pages/baby-info/index'
-        })
         return
       }
       
-      await Promise.all([
-        this.loadFeedings(),
-        this.loadStats(),
-        this.loadGrowthStats(),
-        this.loadFamilyMembers(),
-        this.loadFeedingSettings(),
-        this.loadSelectedFormula(),
-        this.loadFormulaSpec()
-      ])
+	      await Promise.all([
+	        this.loadFeedings({ critical }),
+	        this.loadStats({ critical }),
+	        this.loadGrowthStats(),
+	        this.loadFamilyMembers(),
+	        this.loadFeedingSettings(),
+	        this.loadSelectedFormula(),
+	        this.loadFormulaSpec(),
+	        this.loadWeaningPlan(),
+	      ])
 
       this.connectWs()
-      // 不阻塞主流程：后台判断一次管理员权限，用于菜单入口显示
-      this.checkAdmin()
     },
     
     async loadFamilyMembers() {
@@ -1184,26 +1892,149 @@ export default {
     
     async loadSelectedFormula() {
       try {
-        const res = await api.get(`/babies/${this.currentBaby.id}/formula`)
-        if (res.selection) {
-          this.selectedFormula = res.selection
-        }
-      } catch (error) {
-        // 未选择奶粉，忽略
+        const res = await api.get(`/babies/${this.currentBaby.id}/formula`, {}, { silent: true })
+        this.selectedFormula = res?.selection || null
+        this.loadCustomFormulaSpec()
+      } catch {
+        this.selectedFormula = null
+        this.loadCustomFormulaSpec()
       }
     },
 
     async loadFormulaSpec() {
       try {
-        const res = await api.get(`/babies/${this.currentBaby.id}/formula/specification`)
-        this.formulaSpec = res.specification || null
+        const res = await api.get(`/babies/${this.currentBaby.id}/formula/specification`, {}, { silent: true })
+        this.formulaSpec = res?.specification || null
       } catch {
         this.formulaSpec = null
       }
     },
 
+    buildCustomSpecKeyForFormula(formula) {
+      const babyId = this.currentBaby?.id
+      const f = formula || null
+      if (!babyId || !f?.brand_id) return ''
+      return buildCustomFormulaSpecKey({
+        babyId,
+        brandId: f.brand_id,
+        seriesName: f.series_name || '',
+        ageRange: f.age_range || '',
+      })
+    },
+
+    loadCustomFormulaSpec() {
+      const key = this.buildCustomSpecKeyForFormula(this.selectedFormula || null)
+      this.customFormulaSpecKey = key
+      this.customFormulaSpec = key ? readCustomFormulaSpec(key) : null
+    },
+
+    loadCustomWeaningSpecs() {
+      const plan = this.weaningPlan || null
+      if (!plan) {
+        this.customWeaningOldKey = ''
+        this.customWeaningNewKey = ''
+        this.customWeaningOldSpec = null
+        this.customWeaningNewSpec = null
+        return
+      }
+      const oldFormula = { brand_id: plan.old_brand_id, series_name: plan.old_series_name || '', age_range: plan.old_age_range || '' }
+      const newFormula = { brand_id: plan.new_brand_id, series_name: plan.new_series_name || '', age_range: plan.new_age_range || '' }
+
+      const oldKey = this.buildCustomSpecKeyForFormula(oldFormula)
+      const newKey = this.buildCustomSpecKeyForFormula(newFormula)
+      this.customWeaningOldKey = oldKey
+      this.customWeaningNewKey = newKey
+      this.customWeaningOldSpec = oldKey ? readCustomFormulaSpec(oldKey) : null
+      this.customWeaningNewSpec = newKey ? readCustomFormulaSpec(newKey) : null
+    },
+
+    getCustomSpecForFormula(formula) {
+      const key = this.buildCustomSpecKeyForFormula(formula)
+      if (!key) return null
+      if (key === this.customFormulaSpecKey) return this.customFormulaSpec
+      if (key === this.customWeaningOldKey) return this.customWeaningOldSpec
+      if (key === this.customWeaningNewKey) return this.customWeaningNewSpec
+      // 兜底：极少数场景（不应在每秒 tick 中触发）。保持接口完整性。
+      return readCustomFormulaSpec(key)
+    },
+
+    getEffectiveSpecForFormula(formula, officialSpec) {
+      const custom = this.getCustomSpecForFormula(formula)
+      return applyCustomSpecIfMissing(officialSpec, custom).spec || officialSpec || custom || null
+    },
+
+    async loadWeaningPlan() {
+      try {
+        const babyId = this.currentBaby?.id
+        if (!babyId) {
+          this.weaningPlan = null
+          this.weaningOldSpec = null
+          this.weaningNewSpec = null
+          return
+        }
+        const res = await api.get(`/babies/${babyId}/weaning-plan`, {}, { silent: true })
+        this.weaningPlan = res?.plan || null
+      } catch {
+        this.weaningPlan = null
+      } finally {
+        // best-effort: prefetch specs so the “投喂”按钮可自动带勺数
+        this.loadWeaningSpecs()
+        this.loadCustomWeaningSpecs()
+      }
+    },
+
+    async loadWeaningSpecs() {
+      const plan = this.weaningPlan || null
+      if (!plan) {
+        this.weaningOldSpec = null
+        this.weaningNewSpec = null
+        return
+      }
+
+      const oldId = Number(plan.old_brand_id || 0)
+      const newId = Number(plan.new_brand_id || 0)
+      const curBrandId = Number(this.selectedFormula?.brand_id || 0)
+
+      const tasks = []
+      // old spec: always fetch (may differ from current selection)
+      tasks.push(this.fetchBrandSpec(oldId, plan.old_series_name, plan.old_age_range).catch(() => null))
+
+      // new spec: prefer current spec if matches current selection; else fetch
+      if (newId && curBrandId && newId === curBrandId) {
+        tasks.push(Promise.resolve(this.formulaSpec || null))
+      } else {
+        tasks.push(this.fetchBrandSpec(newId, plan.new_series_name, plan.new_age_range).catch(() => null))
+      }
+
+      const [oldSpec, newSpec] = await Promise.all(tasks)
+      this.weaningOldSpec = oldSpec || null
+      this.weaningNewSpec = newSpec || null
+    },
+
+    async fetchBrandSpec(brandId, seriesName, ageRange) {
+      const bid = Number(brandId || 0)
+      if (!bid) return null
+      const res = await api.get('/formula/specifications', { brand_id: bid }, { silent: true })
+      const list = Array.isArray(res.specifications) ? res.specifications : []
+      if (list.length <= 0) return null
+
+      const series = String(seriesName || '').trim()
+      const range = String(ageRange || '').trim()
+      if (series || range) {
+        const hit = list.find((s) => {
+          const sSeries = String(s?.series_name || '').trim()
+          const sRange = String(s?.age_range || '').trim()
+          if (series && sSeries !== series) return false
+          if (range && sRange !== range) return false
+          return true
+        })
+        if (hit) return hit
+      }
+      return list[0]
+    },
+
     connectWs() {
-      // uni-app：H5 用同源 /ws（vite 反代），其他端用配置的后端域名
+      // WebSocket：尽量使用“API Base URL”的 origin（dev: 同源 + vite 反代；prod: api.naibao.me）
       this.closeWs()
 
       const babyId = this.currentBaby?.id
@@ -1211,9 +2042,12 @@ export default {
       if (!babyId || !token) return
 
       let origin = 'http://127.0.0.1:8080'
-      if (typeof window !== 'undefined' && window.location && window.location.origin) {
-        origin = String(window.location.origin)
-      }
+      try {
+        const base = String(config?.baseURL || '').trim()
+        if (base) origin = base
+      } catch {}
+      // api.js 会在 baseURL 后追加 /api；这里要取真正 origin
+      origin = origin.replace(/\/api\/?$/, '')
       const wsOrigin = origin.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:')
       const url = `${wsOrigin}/ws?token=${encodeURIComponent(token)}&baby_id=${encodeURIComponent(String(babyId))}`
 
@@ -1258,16 +2092,24 @@ export default {
       if (this.wsRefreshTimer) return
       this.wsRefreshTimer = setTimeout(async () => {
         this.wsRefreshTimer = null
-        await Promise.all([this.loadFeedings(), this.loadStats()])
+        await Promise.all([this.loadFeedings(), this.loadStats(), this.loadWeaningPlan()])
       }, 300)
     },
 
-    async loadFeedings() {
+    async loadFeedings(opts = {}) {
+      const critical = !!opts.critical
       try {
         const res = await api.get('/feedings', {
           baby_id: this.currentBaby.id
         })
-        const list = Array.isArray(res.feedings) ? res.feedings : []
+        const rawList = Array.isArray(res.feedings) ? res.feedings : []
+        // 兜底：忽略“未来记录”（常见于设备时间错误/脚本误传），否则会把倒计时推到十几个小时
+        const nowMs = Date.now()
+        const graceMs = 2 * 60 * 1000
+        const list = rawList.filter((f) => {
+          const ms = this.parseTimeToMs(f?.feeding_time)
+          return Number.isFinite(ms) && ms <= nowMs + graceMs
+        })
         this.recentFeedings = list
         const last = list[0] || null
         this.lastFeedingTimestampMs = last ? this.parseTimeToMs(last.feeding_time) : null
@@ -1280,6 +2122,7 @@ export default {
         })
       } catch (error) {
         console.error('加载喂养记录失败', error)
+        if (critical) throw error
       }
     },
 
@@ -1297,7 +2140,8 @@ export default {
       }
     },
     
-    async loadStats() {
+    async loadStats(opts = {}) {
+      const critical = !!opts.critical
       try {
         const res = await api.get('/feedings/stats', {
           baby_id: this.currentBaby.id
@@ -1319,6 +2163,7 @@ export default {
         }
       } catch (error) {
         console.error('加载统计数据失败', error)
+        if (critical) throw error
       }
     },
 
@@ -1374,21 +2219,46 @@ export default {
       }
 
       try {
-        const payload = {
-          baby_id: this.currentBaby.id,
-          amount: n,
-        }
-        if (this.selectedFormula?.brand_id) payload.formula_brand_id = this.selectedFormula.brand_id
-        if (this.selectedFormula?.series_name) payload.formula_series_name = this.selectedFormula.series_name
-        if (inputMethod) payload.input_method = inputMethod
+	        const payload = {
+	          baby_id: this.currentBaby.id,
+	          amount: n,
+	        }
+	
+	        // 转奶期：若进行中，则本次投喂按“旧/新”自动切换（不做同次混合，降低误差与风险）
+	        const plan = this.weaningPlan || null
+	        let formula = this.selectedFormula || null
+	        let spec = this.formulaSpec || null
+	        if (this.weaningAutoEnabled && plan) {
+	          const side = this.weaningAutoSide
+	          if (side === 'old') {
+	            formula = {
+	              brand_id: plan.old_brand_id,
+	              series_name: plan.old_series_name || '',
+	              age_range: plan.old_age_range || '',
+	            }
+	            spec = this.weaningOldSpec || null
+	          } else if (side === 'new') {
+	            formula = {
+	              brand_id: plan.new_brand_id,
+	              series_name: plan.new_series_name || '',
+	              age_range: plan.new_age_range || '',
+	            }
+	            spec = this.weaningNewSpec || this.formulaSpec || null
+	          }
+	        }
 
-        // 记录时把“勺数”也存下来，便于回看/家庭协作交接
-        const scoopMl = Number(this.formulaSpec?.scoop_ml || 0)
-        if (scoopMl > 0) {
-          const raw = n / scoopMl
-          const scoopsInt = Math.max(1, Math.round(raw))
-          payload.scoops = scoopsInt
-        }
+	        if (formula?.brand_id) payload.formula_brand_id = formula.brand_id
+	        if (formula?.series_name) payload.formula_series_name = formula.series_name
+	        if (inputMethod) payload.input_method = inputMethod
+	
+	        // 记录时把“勺数”也存下来，便于回看/家庭协作交接（规格缺失则跳过）
+	        const effSpec = this.getEffectiveSpecForFormula(formula, spec)
+	        const scoopMl = Number(effSpec?.scoop_ml || 0)
+	        if (scoopMl > 0) {
+	          const raw = n / scoopMl
+	          const scoopsInt = Math.max(1, Math.round(raw))
+	          payload.scoops = scoopsInt
+	        }
 
         const res = await api.post('/feedings', payload)
         uni.showToast({ title: '记录成功', icon: 'success' })
@@ -1397,73 +2267,75 @@ export default {
 
         // 保存后给 3 秒撤销窗口（避免误触）
         if (res && res.feeding && res.feeding.id) {
-          this.showUndo(res.feeding)
+          const meta = this.buildUndoMeta(res.feeding)
+          this.showUndo(res.feeding, meta)
         }
       } catch (error) {
         uni.showToast({ title: error.message || '记录失败', icon: 'none' })
       }
     },
 
-    confirmLargeAmount(amount) {
-      const n = Number(amount || 0)
-      return new Promise((resolve) => {
-        uni.showModal({
-          title: '确认奶量',
-          content: `单次奶量通常不建议超过200ml，你输入的是${n}ml，确定记录吗？`,
-          cancelText: '返回修改',
-          confirmText: '确定',
-          success: (res) => resolve(!!res.confirm),
-          fail: () => resolve(false)
-        })
-      })
-    },
+	    confirmLargeAmount(amount) {
+	      const n = Number(amount || 0)
+	      return this.openConfirmSheet({
+	        title: '确认奶量',
+	        desc: `单次奶量通常不建议超过200ml，你输入的是 ${n}ml。\n确定记录吗？`,
+	        cancelText: '返回修改',
+	        confirmText: '确定记录',
+	        variant: 'primary',
+	      })
+	    },
 
-    confirmRapidFeedingIfNeeded(amount) {
-      const lastMs = Number(this.lastFeedingTimestampMs || 0)
-      if (!Number.isFinite(lastMs) || lastMs <= 0) return Promise.resolve(true)
+	    confirmRapidFeedingIfNeeded(amount) {
+	      const lastMs = Number(this.lastFeedingTimestampMs || 0)
+	      if (!Number.isFinite(lastMs) || lastMs <= 0) return Promise.resolve(true)
 
       const nowMs = Date.now()
       const diffMs = Math.max(0, nowMs - lastMs)
-
-      const expectedNext = this.calcNextFeedingTimeMs(lastMs, lastMs)
-      const expectedIntervalMs = Number.isFinite(expectedNext) ? Math.max(0, expectedNext - lastMs) : (3 * 60 * 60 * 1000)
-      const threshold = Math.min(15 * 60 * 1000, expectedIntervalMs * 0.2)
-      if (!Number.isFinite(threshold) || threshold <= 0 || diffMs >= threshold) return Promise.resolve(true)
 
       const burst10 = this.getFeedingBurstSummary(10 * 60 * 1000)
       const diffText = this.formatDurationText(diffMs)
       const n = Number(amount || 0)
       const amountText = Number.isFinite(n) && n > 0 ? `${n}ml` : ''
 
-      let title = '提醒：可能误触'
-      if (diffMs <= 2 * 60 * 1000) title = '警示：记录过密'
+      // 信息减法：只在“明显不合理”的间隔上打断用户（其余情况用记录后的“智能撤销条”温和提醒）
+      const severe = diffMs <= 2 * 60 * 1000 || (burst10.count >= 2 && diffMs <= 5 * 60 * 1000)
+      if (!severe) return Promise.resolve(true)
 
+      const title = diffMs <= 2 * 60 * 1000 ? '可能误触' : '间隔很短'
       const extra = (burst10.count >= 2 && burst10.total_amount > 0)
-        ? `\n最近10分钟已记录 ${burst10.count} 次，共 ${burst10.total_amount}ml。`
+        ? `（10分钟内${burst10.count}次共${burst10.total_amount}ml）`
         : ''
 
-      const content = `距离上次喂奶仅 ${diffText}。短时间多次记录通常不科学，可能是误触/重复记录。${extra}\n建议：先打开“今日喂奶记录”检查并撤销多余记录。${amountText ? `\n仍要记录本次${amountText}请点“继续记录”。` : '\n仍要继续记录请点“继续记录”。'}`
+      const content = `距离上次仅 ${diffText}${extra ? ` ${extra}` : ''}。\n通常不建议这么频繁。你仍可继续记录；记录后也可点“撤销”撤回。${amountText ? `\n本次：${amountText}` : ''}`
 
-      return new Promise((resolve) => {
-        uni.showModal({
-          title,
-          content,
-          cancelText: '先检查',
-          confirmText: '继续记录',
-          success: (res) => {
-            if (!res.confirm) this.openTodayModal()
-            resolve(!!res.confirm)
-          },
-          fail: () => resolve(false)
-        })
-      })
-    },
+	      return this.openConfirmSheet({
+	        title,
+	        desc: content,
+	        cancelText: '先去核对',
+	        confirmText: '继续记录',
+	        variant: 'primary',
+	      }).then((ok) => {
+	        if (!ok) this.openTodayModal()
+	        return ok
+	      })
+	    },
 
     openDetail(feeding) {
       this.undoVisible = false
       this.showTodayModal = false
       this.detailFeeding = feeding
       this.detailAmount = String(feeding?.amount ?? '')
+      const ms = this.parseTimeToMs(feeding?.feeding_time)
+      const d = Number.isFinite(ms) && ms > 0 ? new Date(ms) : new Date()
+      const y = d.getFullYear()
+      const mo = String(d.getMonth() + 1).padStart(2, '0')
+      const da = String(d.getDate()).padStart(2, '0')
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mm = String(d.getMinutes()).padStart(2, '0')
+      this.detailDate = `${y}-${mo}-${da}`
+      this.detailClock = `${hh}:${mm}`
+      this.detailOriginalMs = Number.isFinite(ms) && ms > 0 ? ms : null
       this.detailSaving = false
       this.showDetailModal = true
     },
@@ -1472,7 +2344,42 @@ export default {
       this.showDetailModal = false
       this.detailFeeding = null
       this.detailAmount = ''
+      this.detailDate = ''
+      this.detailClock = ''
+      this.detailOriginalMs = null
       this.detailSaving = false
+    },
+
+    onDetailDateChange(e) {
+      const v = e?.detail?.value
+      if (!v) return
+      this.detailDate = String(v)
+    },
+
+    onDetailTimeChange(e) {
+      const v = e?.detail?.value
+      if (!v) return
+      this.detailClock = String(v)
+    },
+
+    buildDetailFeedingTime() {
+      const ymd = String(this.detailDate || '').trim()
+      const hm = String(this.detailClock || '').trim()
+      const m1 = ymd.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/)
+      const m2 = hm.match(/^(\\d{1,2}):(\\d{1,2})$/)
+      if (!m1 || !m2) return { ms: null, iso: '' }
+
+      const y = Number(m1[1])
+      const mo = Number(m1[2])
+      const da = Number(m1[3])
+      const hh = Number(m2[1])
+      const mm = Number(m2[2])
+      if (![y, mo, da, hh, mm].every((x) => Number.isFinite(x))) return { ms: null, iso: '' }
+
+      const d = new Date(y, mo - 1, da, hh, mm, 0, 0)
+      const ms = d.getTime()
+      if (!Number.isFinite(ms)) return { ms: null, iso: '' }
+      return { ms, iso: d.toISOString() }
     },
 
     async saveDetail() {
@@ -1490,7 +2397,21 @@ export default {
 
       this.detailSaving = true
       try {
-        await api.put(`/feedings/${feeding.id}`, { amount: n })
+        const payload = { amount: n }
+        const t = this.buildDetailFeedingTime()
+        if (t && t.iso && Number.isFinite(t.ms)) {
+          // 与后端口径一致：不允许“未来喂奶时间”（允许 2 分钟误差）
+          if (t.ms > Date.now() + 2 * 60 * 1000) {
+            uni.showToast({ title: '时间不能在未来', icon: 'none' })
+            return
+          }
+
+          const prev = Number(this.detailOriginalMs || 0)
+          const sameMinute = prev > 0 && Math.floor(prev / 60000) === Math.floor(t.ms / 60000)
+          if (!sameMinute) payload.feeding_time = t.iso
+        }
+
+        await api.put(`/feedings/${feeding.id}`, payload)
         uni.showToast({ title: '已保存', icon: 'success' })
         this.closeDetailModal()
         await this.loadFeedings()
@@ -1502,41 +2423,125 @@ export default {
       }
     },
 
-    deleteDetail() {
-      const feeding = this.detailFeeding
-      if (!feeding || !feeding.id || this.detailSaving || !this.canEditDetail) return
-      uni.showModal({
-        title: '确认删除',
-        content: '删除后不可恢复，确定删除该记录吗？',
-        confirmText: '删除',
-        confirmColor: '#E24A3B',
-        success: async (res) => {
-          if (!res.confirm) return
-          this.detailSaving = true
-          try {
-            await api.delete(`/feedings/${feeding.id}`)
-            uni.showToast({ title: '已删除', icon: 'success' })
-            this.closeDetailModal()
-            await this.loadFeedings()
-            await this.loadStats()
-          } catch (e) {
-            uni.showToast({ title: e.message || '删除失败', icon: 'none' })
-          } finally {
-            this.detailSaving = false
+	    async deleteDetail() {
+	      const feeding = this.detailFeeding
+	      if (!feeding || !feeding.id || this.detailSaving || !this.canEditDetail) return
+	      const ok = await this.openConfirmSheet({
+	        title: '确认删除',
+	        desc: '删除后不可恢复。',
+	        cancelText: '取消',
+	        confirmText: '删除',
+	        variant: 'danger',
+	      })
+	      if (!ok) return
+	      this.detailSaving = true
+	      try {
+	        await api.delete(`/feedings/${feeding.id}`)
+	        uni.showToast({ title: '已删除', icon: 'success' })
+	        this.closeDetailModal()
+	        await this.loadFeedings()
+	        await this.loadStats()
+	      } catch (e) {
+	        uni.showToast({ title: e.message || '删除失败', icon: 'none' })
+	      } finally {
+	        this.detailSaving = false
+	      }
+	    },
+
+	    openConfirmSheet({ title, desc, confirmText, cancelText, variant }) {
+	      // 统一确认交互：返回 Promise<boolean>
+	      if (this.confirmSheetVisible) return Promise.resolve(false)
+	      this.confirmSheetTitle = String(title || '')
+	      this.confirmSheetDesc = String(desc || '')
+	      this.confirmSheetConfirmText = String(confirmText || '确定')
+	      this.confirmSheetCancelText = String(cancelText || '取消')
+	      this.confirmSheetVariant = variant === 'danger' ? 'danger' : 'primary'
+	      this.confirmSheetLoading = false
+	      this.confirmSheetVisible = true
+	      return new Promise((resolve) => {
+	        this.confirmSheetResolver = resolve
+	      })
+	    },
+
+	    closeConfirmSheet(ok) {
+	      const r = this.confirmSheetResolver
+	      this.confirmSheetVisible = false
+	      this.confirmSheetTitle = ''
+	      this.confirmSheetDesc = ''
+	      this.confirmSheetResolver = null
+	      try {
+	        if (typeof r === 'function') r(!!ok)
+	      } catch {}
+	    },
+
+	    handleConfirmSheetConfirm() {
+	      this.closeConfirmSheet(true)
+	    },
+
+	    handleConfirmSheetCancel() {
+	      this.closeConfirmSheet(false)
+	    },
+
+    buildUndoMeta(feeding) {
+      const amount = Number(feeding?.amount || 0)
+      const amountText = Number.isFinite(amount) && amount > 0 ? `${Math.round(amount)}ml` : ''
+
+      // 1) 明显异常的间隔：优先提示“可能误触/记录过密”
+      const interval = this.getIntervalInsight()
+      if (interval?.status === 'frequent' && (interval.severity === 'severe' || interval.severity === 'moderate')) {
+        const diffMs = Number(interval?.detail?.last_interval_ms || 0)
+        const diffText = Number.isFinite(diffMs) && diffMs > 0 ? this.formatDurationText(diffMs) : ''
+        const burst = interval?.detail?.burst_10m || null
+        const burstText = burst && Number(burst.count || 0) >= 2
+          ? ` · 10分钟内${burst.count}次`
+          : ''
+
+        if (interval.severity === 'severe') {
+          return {
+            tone: 'danger',
+            title: '可能误触',
+            sub: `${diffText ? `间隔仅 ${diffText}` : '间隔极短'}${amountText ? ` · ${amountText}` : ''}${burstText}`,
           }
         }
-      })
+        return {
+          tone: 'warn',
+          title: '间隔偏短',
+          sub: `${diffText ? `距上次 ${diffText}` : '距上次很短'}${amountText ? ` · ${amountText}` : ''}${burstText}`,
+        }
+      }
+
+      // 2) 超喂（趋势）：按“时间进度”口径的偏快，给温和提醒（不在按钮上提示）
+      const feedingStatus = this.feedingStatusForHome()
+      if (feedingStatus === 'high') {
+        const delta = this.todayDeltaText
+        return {
+          tone: 'warn',
+          title: '今日偏多',
+          sub: `${this.todayConsumedMl}ml${delta ? `（${delta}）` : ''}${amountText ? ` · 本次${amountText}` : ''}`,
+        }
+      }
+
+      // 默认：只提示“已记录”，保持克制
+      return {
+        tone: 'ok',
+        title: amountText ? `已记录 ${amountText}` : '已记录',
+        sub: '',
+      }
     },
 
-    showUndo(feeding) {
+    showUndo(feeding, meta) {
       if (!feeding || !feeding.id) return
       this.undoFeeding = feeding
+      this.undoMeta = meta || null
       this.undoVisible = true
       if (this.undoTimer) clearTimeout(this.undoTimer)
+      const tone = String(meta?.tone || 'ok')
+      const ms = (tone === 'warn' || tone === 'danger') ? 6500 : 3000
       this.undoTimer = setTimeout(() => {
         this.undoVisible = false
         this.undoFeeding = null
-      }, 3000)
+        this.undoMeta = null
+      }, ms)
     },
 
     async undoLastFeeding() {
@@ -1544,6 +2549,7 @@ export default {
       if (!feeding || !feeding.id) return
       this.undoVisible = false
       this.undoFeeding = null
+      this.undoMeta = null
       if (this.undoTimer) {
         clearTimeout(this.undoTimer)
         this.undoTimer = null
@@ -1564,12 +2570,48 @@ export default {
       this.openDetail(feeding)
     },
 
-    openTodayModal() {
+    openExplainModal() {
+      this.selectedTimelineKey = ''
+      this.showTodayModal = false
+      this.showExplainModal = true
+    },
+
+    closeExplainModal() {
+      this.showExplainModal = false
+    },
+
+    openTodayFromExplain() {
+      this.showExplainModal = false
+      this.openTodayModal()
+    },
+
+    async openTodayModal() {
+      this.selectedTimelineKey = ''
+      this.showExplainModal = false
       this.showTodayModal = true
+      await this.reloadTodayModal()
     },
 
     closeTodayModal() {
       this.showTodayModal = false
+      this.todayModalError = ''
+    },
+
+    async reloadTodayModal() {
+      if (!this.currentBaby?.id || this.todayModalLoading) return
+      this.todayModalLoading = true
+      this.todayModalError = ''
+      try {
+        await Promise.all([
+          this.loadFeedings({ critical: true }),
+          this.loadStats({ critical: true }),
+          this.loadFamilyMembers(),
+        ])
+      } catch (e) {
+        this.todayModalError = e?.message || '加载失败'
+      } finally {
+        this.todayModalLoading = false
+      }
     },
 
     formatFeedingTime(raw) {
@@ -1588,10 +2630,192 @@ export default {
       return (m && (m.nickname || '成员')) || '成员'
     },
 
+    weaningTagTextForFeeding(feeding) {
+      const plan = this.weaningPlan || null
+      if (!plan) return ''
+      const bid = Number(feeding?.formula_brand_id || 0)
+      if (!bid) return ''
+      const oldId = Number(plan.old_brand_id || 0)
+      const newId = Number(plan.new_brand_id || 0)
+      if (oldId && bid === oldId) return '旧'
+      if (newId && bid === newId) return '新'
+      return ''
+    },
+
+    weaningTagClassForFeeding(feeding) {
+      const plan = this.weaningPlan || null
+      if (!plan) return ''
+      const bid = Number(feeding?.formula_brand_id || 0)
+      if (!bid) return ''
+      const oldId = Number(plan.old_brand_id || 0)
+      const newId = Number(plan.new_brand_id || 0)
+      if (oldId && bid === oldId) return 'old'
+      if (newId && bid === newId) return 'new'
+      return ''
+    },
+
+    canEditFeeding(feeding) {
+      if (!feeding) return false
+      const userStore = useUserStore()
+      const me = userStore.user?.id
+      if (!me) return false
+      if (String(feeding.user_id) === String(me)) return true
+      const members = Array.isArray(this.familyMembers) ? this.familyMembers : []
+      const m = members.find((x) => String(x.user_id) === String(me))
+      return m?.role === 'admin'
+    },
+
+    handleFeedingRowTap(feeding) {
+      if (!feeding) return
+      // iOS 交互：如果当前有左滑打开的操作区，优先关闭，而不是直接进入详情
+      if (this.swipeOpenFeedingKey) {
+        this.swipeOpenFeedingKey = ''
+        return
+      }
+      this.openDetail(feeding)
+    },
+
+    getTouchPoint(e) {
+      const t =
+        (e && e.touches && e.touches[0]) ||
+        (e && e.changedTouches && e.changedTouches[0]) ||
+        (e && e.detail && e.detail.touches && e.detail.touches[0]) ||
+        (e && e.detail && e.detail.changedTouches && e.detail.changedTouches[0]) ||
+        null
+      const x = t ? (t.clientX ?? t.pageX) : null
+      const y = t ? (t.clientY ?? t.pageY) : null
+      const nx = Number(x)
+      const ny = Number(y)
+      return {
+        x: Number.isFinite(nx) ? nx : 0,
+        y: Number.isFinite(ny) ? ny : 0,
+      }
+    },
+
+    onFeedingSwipeStart(e, feeding) {
+      if (!feeding || !feeding.id) return
+      const p = this.getTouchPoint(e)
+      this.swipeStartX = p.x
+      this.swipeStartY = p.y
+      this.swipeStartKey = String(feeding.id)
+
+      // 只允许同时打开一个
+      const key = String(feeding.id)
+      if (this.swipeOpenFeedingKey && this.swipeOpenFeedingKey !== key) {
+        this.swipeOpenFeedingKey = ''
+      }
+    },
+
+    onFeedingSwipeEnd(e, feeding) {
+      if (!feeding || !feeding.id) return
+      const key = String(feeding.id)
+      if (this.swipeStartKey && this.swipeStartKey !== key) return
+
+      const p = this.getTouchPoint(e)
+      const dx = p.x - Number(this.swipeStartX || 0)
+      const dy = p.y - Number(this.swipeStartY || 0)
+
+      // 更偏纵向：视为滚动，不触发左滑
+      if (Math.abs(dy) > Math.max(12, Math.abs(dx) * 1.2)) {
+        this.swipeStartKey = ''
+        return
+      }
+
+      const openThreshold = -45
+      const closeThreshold = 45
+
+      if (dx <= openThreshold && this.canEditFeeding(feeding)) {
+        this.swipeOpenFeedingKey = key
+      } else if (dx >= closeThreshold) {
+        this.swipeOpenFeedingKey = ''
+      }
+      this.swipeStartKey = ''
+    },
+
+    swipeEdit(feeding) {
+      if (!feeding) return
+      this.swipeOpenFeedingKey = ''
+      this.openDetail(feeding)
+    },
+
+    async swipeDelete(feeding) {
+      if (!feeding || !feeding.id) return
+      if (!this.canEditFeeding(feeding)) {
+        uni.showToast({ title: '仅可删除自己创建的记录', icon: 'none' })
+        return
+      }
+      this.swipeOpenFeedingKey = ''
+
+      const timeText = this.formatFeedingTime(feeding.feeding_time)
+      const amount = Number(feeding.amount || 0)
+      const amountText = Number.isFinite(amount) ? `${Math.round(amount)}ml` : '--ml'
+
+      const ok = await this.openConfirmSheet({
+        title: '删除记录？',
+        desc: `将删除 ${timeText} · ${amountText} 的记录，删除后不可恢复。`,
+        cancelText: '取消',
+        confirmText: '删除',
+        variant: 'danger',
+      })
+      if (!ok) return
+
+      try {
+        await api.delete(`/feedings/${feeding.id}`)
+        uni.showToast({ title: '已删除', icon: 'success' })
+        await Promise.all([this.loadFeedings(), this.loadStats()])
+      } catch (e) {
+        uni.showToast({ title: e?.message || '删除失败', icon: 'none' })
+      }
+    },
+
+    handleHomeTimelineSelect(key) {
+      const k = String(key || '')
+      if (!k) return
+      if (this.selectedTimelineKey === k) {
+        this.openTodayModal()
+        return
+      }
+      this.selectedTimelineKey = k
+      if (this.timelineSelectTimer) clearTimeout(this.timelineSelectTimer)
+      this.timelineSelectTimer = setTimeout(() => {
+        this.selectedTimelineKey = ''
+        this.timelineSelectTimer = null
+      }, 6000)
+    },
+
+    handleTodayTimelineSelect(key) {
+      const k = String(key || '')
+      if (!k) return
+      // 今日抽屉内：再次点同一点 -> 关闭气泡（不再“重复打开”抽屉）
+      if (this.selectedTimelineKey === k) {
+        this.selectedTimelineKey = ''
+        return
+      }
+      this.selectedTimelineKey = k
+      if (this.timelineSelectTimer) clearTimeout(this.timelineSelectTimer)
+      this.timelineSelectTimer = setTimeout(() => {
+        this.selectedTimelineKey = ''
+        this.timelineSelectTimer = null
+      }, 6000)
+    },
+
     goToDataDetail() {
-      // tabBar 页必须用 switchTab；无法携带 query，依赖 store 的 currentBaby 即可。
+      // 数据详情：从首页下钻
       this.showTodayModal = false
-      uni.switchTab({ url: '/pages/data-detail/index' })
+      uni.navigateTo({ url: '/pages/data-detail/index' })
+    },
+
+    goToFormulaSpec() {
+      const babyId = this.currentBaby?.id
+      if (!babyId) return
+      this.showExplainModal = false
+      uni.navigateTo({ url: `/pages/formula-spec/index?babyId=${babyId}` })
+    },
+
+    goWeaningPlan() {
+      const babyId = this.currentBaby?.id
+      if (!babyId) return
+      uni.navigateTo({ url: `/pages/weaning-plan/index?babyId=${babyId}` })
     },
     
     goToBabyInfo() {
@@ -1600,67 +2824,9 @@ export default {
       })
     },
     
-    async showMenu() {
-      const userStore = useUserStore()
-      const babyId = this.currentBaby?.id
-      // 菜单打开前做一次轻量权限探测，保证“管理后台”入口即时可见
-      await this.checkAdmin()
-      const items = [
-        {
-          label: '宝宝基础资料',
-          onTap: () => uni.navigateTo({ url: '/pages/baby-info/index' }),
-        },
-        {
-          label: '选择奶粉',
-          onTap: () => {
-            if (!babyId) return this.goToBabyInfo()
-            uni.navigateTo({ url: `/pages/formula-select/index?babyId=${babyId}` })
-          },
-        },
-        {
-          label: '喂奶设置',
-          onTap: () => {
-            if (!babyId) return this.goToBabyInfo()
-            uni.navigateTo({ url: `/pages/feeding-settings/index?babyId=${babyId}` })
-          },
-        },
-        {
-          label: '数据详情',
-          onTap: () => uni.switchTab({ url: '/pages/data-detail/index' }),
-        },
-        {
-          label: '数据报告',
-          onTap: () => {
-            if (!babyId) return this.goToBabyInfo()
-            uni.navigateTo({ url: `/pages/report/index?babyId=${babyId}` })
-          },
-        },
-        {
-          label: '家庭共享',
-          onTap: () => uni.navigateTo({ url: `/pages/family/index?babyId=${babyId || ''}` }),
-        },
-      ]
-
-      if (this.isAdmin) {
-        items.push({
-          label: '管理后台',
-          onTap: () => uni.navigateTo({ url: '/pages/admin/index' }),
-        })
-      }
-
-      items.push({
-        label: '退出登录',
-        onTap: () => userStore.logout(),
-      })
-
-      uni.showActionSheet({
-        itemList: items.map((x) => x.label),
-        success: (res) => {
-          const idx = res.tapIndex
-          const hit = items[idx]
-          if (hit && typeof hit.onTap === 'function') hit.onTap()
-        }
-      })
+    showMenu() {
+      // 统一入口：进入“设置”页（更像系统设置，信息与入口集中，不再用 ActionSheet 堆选项）
+      uni.navigateTo({ url: '/pages/settings/index' })
     },
     
     startCountdown() {
@@ -1670,14 +2836,6 @@ export default {
         const nowMs = Date.now()
         this.nowTickMs = nowMs
 
-        // 距上次喂奶已过去
-        const lastMs = this.lastFeedingTimestampMs
-        if (Number.isFinite(lastMs) && lastMs > 0) {
-          this.sinceLastFeedingText = `距上次喂奶已过去 ${this.formatDurationText(nowMs - lastMs)}`
-        } else {
-          this.sinceLastFeedingText = '暂无喂奶记录'
-        }
-
         // 下次喂奶：严格以服务端 timestamp 为准（与喂奶设置口径一致）
         let nextMs = this.nextFeedingTimestampMs
         if (!nextMs && this.stats?.next_feeding_time) {
@@ -1686,10 +2844,23 @@ export default {
         if (Number.isFinite(nextMs) && nextMs > 0) {
           this.nextFeedingClockText = this.formatClockText(nextMs)
           this.nextFeedingDayLabel = this.formatDayLabel(nextMs, nowMs)
+          const diff = nextMs - nowMs
+          if (Number.isFinite(diff) && diff >= 0) {
+            this.nextCountdownMode = 'remaining'
+            this.nextCountdownText = this.formatDurationText(diff)
+          } else if (Number.isFinite(diff)) {
+            this.nextCountdownMode = 'overdue'
+            this.nextCountdownText = this.formatDurationText(Math.abs(diff))
+          } else {
+            this.nextCountdownMode = 'remaining'
+            this.nextCountdownText = '--'
+          }
           this.maybeFireInAppReminder(nextMs, nowMs)
         } else {
           this.nextFeedingClockText = '--:--'
           this.nextFeedingDayLabel = ''
+          this.nextCountdownMode = 'remaining'
+          this.nextCountdownText = '--'
         }
       }
 
@@ -1705,18 +2876,44 @@ export default {
       const advMin = Math.max(0, Number(s.advance_minutes ?? 15) || 0)
       const advMs = advMin * 60 * 1000
 
+      const useSystem = canUseSystemNotify() && isPageHidden()
+
       // 每个“下次喂奶时间”最多触发一次提前提示 + 一次到点提示
       if (advMin > 0 && this.remindAdvanceFiredFor !== targetMs) {
         const advAt = targetMs - advMs
         if (nowMs >= advAt && nowMs < targetMs) {
           this.remindAdvanceFiredFor = targetMs
-          uni.showToast({ title: `还有${advMin}分钟到下次喂奶`, icon: 'none' })
+          const title = `还有${advMin}分钟到下次喂奶`
+          if (useSystem) {
+            const n = sendSystemNotify('奶宝提醒', {
+              body: title,
+              icon: '/static/naiping1.svg',
+              tag: `naibao-adv-${String(targetMs)}`,
+            })
+            try {
+              if (n) n.onclick = () => { try { window.focus() } catch {} }
+            } catch {}
+          } else {
+            uni.showToast({ title, icon: 'none' })
+          }
         }
       }
       if (this.remindDueFiredFor !== targetMs && nowMs >= targetMs) {
         this.remindDueFiredFor = targetMs
-        try { uni.vibrateShort() } catch {}
-        uni.showToast({ title: '该喂奶了', icon: 'none' })
+        const title = '该喂奶了'
+        if (useSystem) {
+          const n = sendSystemNotify('奶宝提醒', {
+            body: title,
+            icon: '/static/naiping1.svg',
+            tag: `naibao-due-${String(targetMs)}`,
+          })
+          try {
+            if (n) n.onclick = () => { try { window.focus() } catch {} }
+          } catch {}
+        } else {
+          try { uni.vibrateShort() } catch {}
+          uni.showToast({ title, icon: 'none' })
+        }
       }
     }
   }
@@ -1727,9 +2924,23 @@ export default {
 .home-container {
   min-height: 100vh;
   background-color: transparent;
-  /* 预留 tabbar + 大按钮 + 安全区 */
-  padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  /* 预留底部主按钮 + 撤销条 + 安全区 */
+  padding-bottom: calc(170px + env(safe-area-inset-bottom, 0px));
   position: relative;
+  box-sizing: border-box;
+}
+
+.home-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  /* 顶部不要再“空一大块”：主内容从安全区后直接开始（更像 iOS 信息布局） */
+  padding: calc(var(--nb-safe-top)) var(--nb-page-x) 48px;
+  box-sizing: border-box;
 }
 
 /* 顶部菜单 */
@@ -1745,18 +2956,24 @@ export default {
 .menu-icon {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   cursor: pointer;
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
   justify-content: center;
+  align-items: center;
+  border-radius: 20px; /* 正圆按钮 */
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.12);
+  backdrop-filter: blur(10px);
 }
 
 .menu-line {
   display: block;
-  width: 24px;
-  height: 3px;
-  background-color: #333;
+  width: 18px;
+  height: 2px;
+  background-color: rgba(27, 26, 23, 0.82);
   border-radius: 2px;
 }
 
@@ -1765,13 +2982,13 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: calc(68px + env(safe-area-inset-top, 0px)) 20px 28px;
+  padding: 14px 0 14px;
 }
 
 .baby-avatar-large {
-  width: 100px;
-  height: 100px;
-  border-radius: 50px;
+  width: 84px;
+  height: 84px;
+  border-radius: 42px;
   overflow: hidden;
   background: #FFD700;
   margin-bottom: 12px;
@@ -1797,7 +3014,7 @@ export default {
 }
 
 .baby-name-large {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 800;
   color: #333;
   text-align: center;
@@ -1824,52 +3041,223 @@ export default {
   color: rgba(27, 26, 23, 0.40);
 }
 
-/* 今日概览卡（减焦虑：用“状态+建议+一键动作”替代难读的瓶子轨道） */
-.today-card {
-  margin: 10px var(--nb-page-x) 0;
-  padding: 16px 16px 14px;
-  border-radius: 24px;
-  border: 1px solid var(--nb-border);
-  background:
-    radial-gradient(720px 260px at 18% 0%, rgba(247, 201, 72, 0.22), rgba(247, 201, 72, 0) 60%),
-    radial-gradient(520px 260px at 100% 30%, rgba(255, 138, 61, 0.16), rgba(255, 138, 61, 0) 62%),
-    rgba(255, 255, 255, 0.92);
-  box-shadow: 0 18px 44px rgba(27, 26, 23, 0.12);
-  box-sizing: border-box;
-}
-
-.today-card:active {
-  transform: scale(0.995);
-}
-
-.today-head {
+/* 首页轻量引导（Setup Nudge）：一条即可，避免面板化 */
+.setup-nudge {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto 6px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.08);
+  backdrop-filter: blur(10px);
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.setup-nudge:active {
+  transform: scale(0.995);
+}
+
+.setup-nudge-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   gap: 10px;
 }
 
-.today-title {
+.setup-nudge-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 12px;
   display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 6px;
-  color: var(--nb-text);
+  align-items: center;
+  justify-content: center;
+  background: rgba(27, 26, 23, 0.06);
+  border: 1px solid rgba(27, 26, 23, 0.08);
+  flex: 0 0 30px;
 }
 
-.today-title-prefix,
-.today-title-suffix {
-  font-size: 14px;
-  font-weight: 700;
+.setup-nudge-icon.t-info {
+  background: rgba(247, 201, 72, 0.18);
+  border-color: rgba(247, 201, 72, 0.30);
+}
+
+.setup-nudge-icon.t-warn {
+  background: rgba(226, 74, 59, 0.12);
+  border-color: rgba(226, 74, 59, 0.22);
+}
+
+.setup-nudge-icon-text {
+  font-size: 16px;
+  font-weight: 900;
   color: rgba(27, 26, 23, 0.78);
 }
 
-.today-title-num {
-  font-size: 34px;
+.setup-nudge-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setup-nudge-title {
+  font-size: 13px;
   font-weight: 900;
-  letter-spacing: -1px;
+  color: var(--nb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.setup-nudge-desc {
+  font-size: 12px;
+  color: rgba(27, 26, 23, 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.setup-nudge-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.setup-nudge-cta {
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.92);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.setup-nudge-chev {
+  font-size: 16px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.38);
+}
+
+.setup-nudge-close {
+  font-size: 18px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.42);
+  padding-left: 6px;
+}
+
+/* 首页信息减法：弱说明、强主线（下次喂奶 + 24h 时间轴） */
+.home-focus {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.hero {
+  text-align: center;
+}
+
+.hero-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(27, 26, 23, 0.55);
+  letter-spacing: 0.3px;
+}
+
+.hero-time-row {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.hero-day-pill {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  background: rgba(27, 26, 23, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-day-pill-text {
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.66);
   line-height: 1;
+}
+
+.hero-time {
+  font-size: 18px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.86);
+  letter-spacing: -0.2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-countdown-row {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hero-countdown-prefix {
+  font-size: 14px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.70);
+}
+
+.hero-countdown-hm {
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+  color: var(--nb-text);
+  line-height: 1.08;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hero-countdown-row.overdue .hero-countdown-prefix,
+.hero-countdown-row.overdue .hero-countdown-hm {
+  color: var(--nb-danger);
+}
+
+.hero-meta-line {
+  margin-top: 10px;
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(27, 26, 23, 0.70);
+}
+
+.hero-badges {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .health-pill {
@@ -1883,6 +3271,42 @@ export default {
   font-size: 12px;
   font-weight: 900;
   color: rgba(27, 26, 23, 0.72);
+}
+
+.weaning-pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 26, 23, 0.12);
+  background: rgba(247, 201, 72, 0.16);
+}
+
+.weaning-pill.active {
+  background: rgba(247, 201, 72, 0.18);
+  border-color: rgba(247, 201, 72, 0.28);
+}
+
+.weaning-pill.paused {
+  background: rgba(27, 26, 23, 0.06);
+  border-color: rgba(27, 26, 23, 0.12);
+}
+
+.weaning-pill.done {
+  background: rgba(82, 196, 26, 0.12);
+  border-color: rgba(82, 196, 26, 0.18);
+}
+
+.weaning-pill-text {
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.72);
+}
+
+.weaning-pill.paused .weaning-pill-text {
+  color: rgba(27, 26, 23, 0.66);
+}
+
+.weaning-pill.done .weaning-pill-text {
+  color: rgba(27, 26, 23, 0.78);
 }
 
 .lv-excellent {
@@ -1912,9 +3336,10 @@ export default {
 .today-sub {
   margin-top: 10px;
   display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
 }
 
 .today-sub-strong {
@@ -1931,10 +3356,63 @@ export default {
 .today-sub-muted {
   font-size: 13px;
   color: var(--nb-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.suggest-card {
+  margin-top: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  background:
+    radial-gradient(720px 260px at 18% 0%, rgba(247, 201, 72, 0.20), rgba(247, 201, 72, 0) 60%),
+    radial-gradient(520px 260px at 100% 30%, rgba(255, 138, 61, 0.14), rgba(255, 138, 61, 0) 62%),
+    rgba(255, 255, 255, 0.92);
+  padding: 12px 12px 10px;
+  box-shadow: 0 18px 44px rgba(27, 26, 23, 0.10);
+  text-align: center;
+}
+
+.suggest-k {
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.58);
+}
+
+.suggest-v {
+  margin-top: 6px;
+  display: block;
+  font-size: 34px;
+  font-weight: 900;
+  color: var(--nb-text);
+  letter-spacing: -0.8px;
+  line-height: 1.05;
+}
+
+.suggest-sub {
+  margin-top: 6px;
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.55);
+}
+
+.suggest-link {
+  color: rgba(27, 26, 23, 0.72);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.suggest-link:active {
+  opacity: 0.7;
 }
 
 .today-progress {
   margin-top: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 12px 12px 10px;
 }
 
 .today-progress-head {
@@ -1992,137 +3470,32 @@ export default {
   color: rgba(27, 26, 23, 0.62);
 }
 
-.today-timeline {
-  margin-top: 12px;
+.today-progress-delta-row {
+  margin-top: 10px;
+  text-align: center;
 }
 
-.today-timeline-head {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.today-timeline-title {
-  font-size: 12px;
-  font-weight: 900;
-  color: rgba(27, 26, 23, 0.78);
-}
-
-.today-timeline-sub {
-  font-size: 12px;
-  color: rgba(27, 26, 23, 0.50);
-}
-
-.today-timeline-track {
-  margin-top: 8px;
-  position: relative;
-  height: 22px;
-}
-
-.today-timeline-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 12px;
-  height: 2px;
-  border-radius: 2px;
-  background: rgba(27, 26, 23, 0.12);
-}
-
-.today-timeline-now {
-  position: absolute;
-  top: 0;
-  width: 2px;
-  height: 22px;
-  background: rgba(27, 26, 23, 0.28);
-  border-radius: 2px;
-  transform: translateX(-1px);
-}
-
-.today-timeline-mark {
-  position: absolute;
-  bottom: 8px;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.today-timeline-stick {
-  width: 2px;
-  background: rgba(27, 26, 23, 0.55);
-  border-radius: 2px;
-}
-
-.today-timeline-dot {
+.today-progress-delta {
+  display: inline-block;
+  padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(255, 138, 61, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 6px 14px rgba(27, 26, 23, 0.14);
-}
-
-.today-timeline-axis {
-  margin-top: 6px;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-}
-
-.today-timeline-axis .axis-item {
-  font-size: 11px;
-  color: rgba(27, 26, 23, 0.48);
-}
-
-.today-next {
-  margin-top: 14px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-}
-
-.today-next-left {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.today-next-label {
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  background: rgba(27, 26, 23, 0.05);
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.62);
-}
-
-.today-next-amount {
-  font-size: 13px;
-  font-weight: 800;
-  color: rgba(27, 26, 23, 0.70);
-  line-height: 1.3;
-}
-
-.today-next-countdown {
-  font-size: 30px;
   font-weight: 900;
-  color: var(--nb-text);
-  font-family: 'Courier New', monospace;
-  letter-spacing: 2px;
-  line-height: 1.05;
+  color: rgba(27, 26, 23, 0.72);
 }
 
-.today-hint {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.d-low {
+  background: rgba(255, 138, 61, 0.14);
+  border-color: rgba(255, 138, 61, 0.22);
+  color: rgba(181, 83, 29, 0.95);
 }
 
-.today-hint-text {
-  font-size: 13px;
-  color: rgba(27, 26, 23, 0.78);
-  line-height: 1.6;
+.d-high {
+  background: rgba(226, 74, 59, 0.12);
+  border-color: rgba(226, 74, 59, 0.22);
+  color: var(--nb-danger);
 }
 
 .today-advice {
@@ -2179,8 +3552,8 @@ export default {
 /* 投喂按钮 */
 .feed-button-large {
   position: fixed;
-  /* 贴底会压到 tabbar / 手势条，向上抬并考虑安全区 */
-  bottom: calc(96px + var(--nb-safe-bottom));
+  /* 贴底需考虑手势条安全区 */
+  bottom: calc(24px + var(--nb-safe-bottom));
   left: 50%;
   transform: translateX(-50%);
   width: 100px;
@@ -2189,11 +3562,44 @@ export default {
   background-color: #333;
   border: 3px solid #FFD700;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 4px;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
+}
+
+.feed-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(27, 26, 23, 0.14);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.feed-badge.old {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.feed-badge.new {
+  background: rgba(247, 201, 72, 0.26);
+  border-color: rgba(247, 201, 72, 0.36);
+}
+
+.feed-badge-text {
+  font-size: 12px;
+  font-weight: 1000;
+  color: rgba(27, 26, 23, 0.82);
 }
 
 .feed-button-large:active {
@@ -2204,6 +3610,14 @@ export default {
   color: #fff;
   font-size: 24px;
   font-weight: 600;
+}
+
+.feed-button-sub {
+  margin-top: -2px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
 }
 
 /* 弹窗样式 */
@@ -2247,18 +3661,8 @@ export default {
   overflow: hidden;
 }
 
-.today-modal-summary {
-  margin-top: -6px;
-  margin-bottom: 12px;
-}
-
-.today-modal-summary-text {
-  font-size: 13px;
-  color: rgba(27, 26, 23, 0.70);
-}
-
 .today-modal-meta {
-  margin-top: -4px;
+  margin-top: 0;
   margin-bottom: 12px;
   padding: 10px 12px;
   border-radius: 14px;
@@ -2270,6 +3674,10 @@ export default {
   font-size: 12px;
   color: rgba(27, 26, 23, 0.62);
   line-height: 1.5;
+}
+
+.today-timeline-wrap {
+  margin-bottom: 12px;
 }
 
 .today-modal-empty {
@@ -2298,6 +3706,59 @@ export default {
   overflow: hidden;
 }
 
+.today-swipe {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+.today-swipe-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-end;
+  width: 140px;
+  /* 让操作区在 H5 上可点击：避免被内容容器覆盖 */
+  z-index: 3;
+  pointer-events: none;
+}
+
+.today-swipe.open .today-swipe-actions {
+  pointer-events: auto;
+}
+
+.today-swipe-action {
+  width: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.today-swipe-action.edit {
+  background: rgba(255, 138, 61, 0.92);
+}
+
+.today-swipe-action.delete {
+  background: rgba(226, 74, 59, 0.92);
+}
+
+.today-swipe-action-text {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.today-swipe-content {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
 .today-item {
   padding: 12px 12px;
   display: flex;
@@ -2306,32 +3767,79 @@ export default {
   justify-content: space-between;
   gap: 10px;
   border-bottom: 1px solid rgba(27, 26, 23, 0.08);
+  transform: translateX(0);
+  transition: transform 180ms ease;
+  will-change: transform;
+}
+
+.today-swipe.open .today-item {
+  transform: translateX(-140px);
 }
 
 .today-item:last-child {
   border-bottom: none;
 }
 
+.today-item-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+}
+
 .today-item-time {
-  width: 52px;
+  width: 46px;
   font-size: 13px;
   color: rgba(27, 26, 23, 0.66);
   font-family: 'Courier New', monospace;
+  white-space: nowrap;
 }
 
 .today-item-amount {
-  flex: 1;
   font-size: 16px;
   font-weight: 900;
   color: var(--nb-text);
   text-align: left;
+  white-space: nowrap;
+}
+
+.today-item-tag {
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 26, 23, 0.12);
+  background: rgba(27, 26, 23, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.today-item-tag.old {
+  background: rgba(27, 26, 23, 0.06);
+}
+
+.today-item-tag.new {
+  background: rgba(247, 201, 72, 0.18);
+  border-color: rgba(247, 201, 72, 0.26);
+}
+
+.today-item-tag-text {
+  font-size: 11px;
+  font-weight: 1000;
+  color: rgba(27, 26, 23, 0.72);
 }
 
 .today-item-user {
-  width: 88px;
+  flex: none;
+  max-width: 40%;
   text-align: right;
   font-size: 12px;
   color: rgba(27, 26, 23, 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .modal-header {
@@ -2396,8 +3904,7 @@ export default {
   position: fixed;
   left: var(--nb-page-x);
   right: var(--nb-page-x);
-  bottom: calc(200px + env(safe-area-inset-bottom, 0px));
-  background: rgba(255, 255, 255, 0.92);
+  bottom: calc(148px + var(--nb-safe-bottom));
   border: 1px solid var(--nb-border);
   border-radius: var(--nb-radius-lg);
   padding: 12px 14px;
@@ -2406,29 +3913,130 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 28px rgba(27, 26, 23, 0.12);
   z-index: 998;
 }
 
-.undo-text {
+.undo-toast.tone-warn {
+  border-color: rgba(255, 138, 61, 0.26);
+  background:
+    radial-gradient(720px 260px at 20% 0%, rgba(255, 138, 61, 0.10), rgba(255, 138, 61, 0) 60%),
+    rgba(255, 255, 255, 0.94);
+}
+
+.undo-toast.tone-danger {
+  border-color: rgba(226, 74, 59, 0.26);
+  background:
+    radial-gradient(720px 260px at 20% 0%, rgba(226, 74, 59, 0.10), rgba(226, 74, 59, 0) 60%),
+    rgba(255, 255, 255, 0.94);
+}
+
+.undo-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.undo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(27, 26, 23, 0.06);
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  flex: none;
+}
+
+.tone-warn .undo-icon {
+  background: rgba(255, 138, 61, 0.14);
+  border-color: rgba(255, 138, 61, 0.22);
+}
+
+.tone-danger .undo-icon {
+  background: rgba(226, 74, 59, 0.12);
+  border-color: rgba(226, 74, 59, 0.22);
+}
+
+.undo-icon-text {
+  font-size: 16px;
+  color: rgba(27, 26, 23, 0.72);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tone-warn .undo-icon-text {
+  color: rgba(181, 83, 29, 0.95);
+}
+
+.tone-danger .undo-icon-text {
+  color: var(--nb-danger);
+}
+
+.undo-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.undo-title {
   font-size: 14px;
   color: var(--nb-text);
-  font-weight: 700;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.undo-sub {
+  font-size: 12px;
+  color: rgba(27, 26, 23, 0.58);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .undo-actions {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex: none;
 }
 
-.undo-action {
-  font-size: 14px;
-  color: rgba(27, 26, 23, 0.72);
-  font-weight: 800;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+.undo-btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 26, 23, 0.12);
+  background: rgba(27, 26, 23, 0.04);
+  color: rgba(27, 26, 23, 0.86);
+  font-size: 13px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.undo-btn.primary {
+  border: none;
+  background: rgba(27, 26, 23, 0.92);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.tone-warn .undo-btn.primary {
+  background: rgba(255, 138, 61, 0.92);
+}
+
+.tone-danger .undo-btn.primary {
+  background: rgba(226, 74, 59, 0.92);
 }
 
 /* 详情弹窗补充样式（复用 modal-* 基础结构） */
@@ -2441,15 +4049,40 @@ export default {
   border-bottom: 1px solid rgba(27, 26, 23, 0.08);
 }
 
+.detail-row.disabled {
+  opacity: 0.78;
+}
+
 .detail-label {
   font-size: 14px;
   color: rgba(27, 26, 23, 0.62);
+}
+
+.detail-picker-wrap {
+  flex: 1;
+}
+
+.detail-picker {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
 }
 
 .detail-value {
   font-size: 14px;
   color: #333;
   font-weight: 700;
+}
+
+.detail-chev {
+  font-size: 18px;
+  color: rgba(27, 26, 23, 0.38);
+  font-weight: 900;
+  line-height: 1;
 }
 
 .detail-edit {

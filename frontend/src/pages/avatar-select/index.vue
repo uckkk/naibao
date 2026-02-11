@@ -7,6 +7,8 @@
       <text class="title">选择头像</text>
       <view class="placeholder"></view>
     </view>
+
+    <NbNetworkBanner />
     
     <view class="current-avatar-section">
       <text class="current-label">当前头像</text>
@@ -50,8 +52,10 @@
 import { getAllAvatars } from '@/utils/avatars'
 import { useUserStore } from '@/stores/user'
 import api from '@/utils/api'
+import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
 
 export default {
+  components: { NbNetworkBanner },
   data() {
     return {
       avatars: [],

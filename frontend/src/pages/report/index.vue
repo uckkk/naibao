@@ -1,5 +1,6 @@
 <template>
   <view class="report-container">
+    <NbNetworkBanner />
     <view class="top-bar">
       <text class="title">数据报告</text>
       <text class="subtitle">{{ babyName }}</text>
@@ -68,55 +69,109 @@
       </view>
     </view>
 
-    <view v-if="errorText" class="error-card">
-      <text class="error-text">{{ errorText }}</text>
-    </view>
+    <view class="report-body">
+    <NbLoadingSwitch :loading="loading">
+      <template #skeleton>
+        <view class="report-skel">
+          <view class="summary-grid">
+            <view v-for="i in 4" :key="i" class="summary-card">
+              <NbSkeleton :w="44" :h="12" :radius="6" />
+              <view style="margin-top:10px;">
+                <NbSkeleton :w="110" :h="26" :radius="13" />
+              </view>
+            </view>
+          </view>
 
-    <view v-if="report" class="summary-grid">
-      <view class="summary-card">
-        <text class="summary-k">总奶量</text>
-        <text class="summary-v">{{ report.summary.total_amount }}ml</text>
-      </view>
-      <view class="summary-card">
-        <text class="summary-k">日均</text>
-        <text class="summary-v">{{ report.summary.avg_per_day }}ml</text>
-      </view>
-      <view class="summary-card">
-        <text class="summary-k">记录次数</text>
-        <text class="summary-v">{{ report.summary.feedings_count }}</text>
-      </view>
-      <view class="summary-card">
-        <text class="summary-k">单次均值</text>
-        <text class="summary-v">{{ report.summary.avg_per_feeding }}ml</text>
-      </view>
-    </view>
+          <view class="days-card">
+            <view class="days-header">
+              <NbSkeleton :w="64" :h="14" :radius="7" />
+              <NbSkeleton :w="120" :h="12" :radius="6" />
+            </view>
+            <view class="days-table">
+              <view class="days-row days-row-head">
+                <NbSkeleton :w="42" :h="12" :radius="6" />
+                <NbSkeleton :w="42" :h="12" :radius="6" />
+                <NbSkeleton :w="42" :h="12" :radius="6" />
+                <NbSkeleton :w="92" :h="12" :radius="6" />
+              </view>
+              <view v-for="i in 5" :key="i" class="days-row">
+                <NbSkeleton :w="42" :h="12" :radius="6" />
+                <NbSkeleton :w="52" :h="12" :radius="6" />
+                <NbSkeleton :w="30" :h="12" :radius="6" />
+                <NbSkeleton :w="110" :h="12" :radius="6" />
+              </view>
+            </view>
+          </view>
+        </view>
+      </template>
 
-    <view v-if="report" class="days-card">
-      <view class="days-header">
-        <text class="days-title">每日明细</text>
-        <text class="days-hint">点击复制单日数据</text>
-      </view>
+      <NbState
+        v-if="errorText"
+        type="error"
+        title="生成失败"
+        :desc="errorText"
+        actionText="重试"
+        @action="loadReport"
+      />
 
-      <view class="days-table">
-        <view class="days-row days-row-head">
-          <text class="col date">日期</text>
-          <text class="col amt">奶量</text>
-          <text class="col cnt">次数</text>
-          <text class="col wh">体重/身高</text>
+      <NbState
+        v-else-if="!report"
+        type="empty"
+        title="还没有报告"
+        desc="选择范围后点“生成报告”"
+        actionText="生成报告"
+        @action="loadReport"
+      />
+
+      <template v-else>
+        <view class="summary-grid">
+          <view class="summary-card">
+            <text class="summary-k">总奶量</text>
+            <text class="summary-v">{{ report.summary.total_amount }}ml</text>
+          </view>
+          <view class="summary-card">
+            <text class="summary-k">日均</text>
+            <text class="summary-v">{{ report.summary.avg_per_day }}ml</text>
+          </view>
+          <view class="summary-card">
+            <text class="summary-k">记录次数</text>
+            <text class="summary-v">{{ report.summary.feedings_count }}</text>
+          </view>
+          <view class="summary-card">
+            <text class="summary-k">单次均值</text>
+            <text class="summary-v">{{ report.summary.avg_per_feeding }}ml</text>
+          </view>
         </view>
 
-        <view
-          v-for="d in report.days"
-          :key="d.date"
-          class="days-row"
-          @click="copyDay(d)"
-        >
-          <text class="col date">{{ d.date.slice(5) }}</text>
-          <text class="col amt">{{ d.total_amount || 0 }}</text>
-          <text class="col cnt">{{ d.feedings_count || 0 }}</text>
-          <text class="col wh">{{ weightHeightText(d) }}</text>
+        <view class="days-card">
+          <view class="days-header">
+            <text class="days-title">每日明细</text>
+            <text class="days-hint">点击复制单日数据</text>
+          </view>
+
+          <view class="days-table">
+            <view class="days-row days-row-head">
+              <text class="col date">日期</text>
+              <text class="col amt">奶量</text>
+              <text class="col cnt">次数</text>
+              <text class="col wh">体重/身高</text>
+            </view>
+
+            <view
+              v-for="d in report.days"
+              :key="d.date"
+              class="days-row"
+              @click="copyDay(d)"
+            >
+              <text class="col date">{{ d.date.slice(5) }}</text>
+              <text class="col amt">{{ d.total_amount || 0 }}</text>
+              <text class="col cnt">{{ d.feedings_count || 0 }}</text>
+              <text class="col wh">{{ weightHeightText(d) }}</text>
+            </view>
+          </view>
         </view>
-      </view>
+      </template>
+    </NbLoadingSwitch>
     </view>
     </template>
   </view>
@@ -126,9 +181,12 @@
 import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import NbState from '@/components/NbState.vue'
+import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
+import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbSkeleton from '@/components/NbSkeleton.vue'
 
 export default {
-  components: { NbState },
+  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton },
   data() {
     return {
       babyId: null,
@@ -164,6 +222,10 @@ export default {
   },
 
   methods: {
+    onNbRetry() {
+      if (this.babyId) this.loadReport()
+    },
+
     weightHeightText(d) {
       const w = d.weight ? `${Number(d.weight).toFixed(1)}kg` : '--kg'
       const h = d.height ? `${d.height}cm` : '--cm'
@@ -470,21 +532,11 @@ export default {
   font-size: 12px;
 }
 
-.error-card {
+.report-body {
   margin-top: 12px;
-  padding: 12px 14px;
-  border-radius: var(--nb-radius-md);
-  border: 1px solid rgba(226, 74, 59, 0.25);
-  background: rgba(226, 74, 59, 0.06);
-}
-
-.error-text {
-  color: var(--nb-danger);
-  font-size: 12px;
 }
 
 .summary-grid {
-  margin-top: 14px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;

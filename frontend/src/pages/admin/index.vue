@@ -1,5 +1,6 @@
 <template>
   <view class="admin-container">
+    <NbNetworkBanner />
     <NbState
       v-if="unauthorized"
       type="error"
@@ -210,9 +211,10 @@
 import api from '@/utils/api'
 import NbState from '@/components/NbState.vue'
 import { useUserStore } from '@/stores/user'
+import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
 
 export default {
-  components: { NbState },
+  components: { NbState, NbNetworkBanner },
   data() {
     return {
       activeTab: 'standards',
@@ -281,6 +283,15 @@ export default {
   },
 
   methods: {
+    onNbRetry() {
+      if (this.unauthorized) return
+      if (this.activeTab === 'formula') {
+        this.refreshFormula()
+        return
+      }
+      this.refreshStandards()
+    },
+
     goBack() {
       try {
         uni.navigateBack()

@@ -9,6 +9,82 @@ const isDev = typeof process !== 'undefined'
   ? process.env?.NODE_ENV !== 'production'
   : false
 
+// 约定：401（需要重新登录）时，API 层会发起跳转。
+// 为避免各页面重复 toast（“像页面集合”），用一个哨兵 title 抑制无意义的错误提示。
+export const NB_AUTH_REDIRECT_TOAST_TITLE = '__NB_AUTH_REDIRECT__'
+const NB_AUTH_NOTICE_KEY = 'nb_auth_notice'
+
+let authRedirecting = false
+let authRedirectAtMs = 0
+
+function isPublicApiPath(path) {
+  return typeof path === 'string' && path.startsWith('/public/')
+}
+
+function isOnLoginPage() {
+  try {
+    if (typeof location !== 'undefined' && String(location.hash || '').includes('/pages/login/index')) {
+      return true
+    }
+    if (typeof getCurrentPages === 'function') {
+      const pages = getCurrentPages() || []
+      const last = pages[pages.length - 1]
+      const route = (last && (last.route || last.$page?.route)) || ''
+      return typeof route === 'string' && route.includes('pages/login/index')
+    }
+  } catch {}
+  return false
+}
+
+function setAuthNotice(message) {
+  if (!message) return
+  try {
+    const existing = uni.getStorageSync(NB_AUTH_NOTICE_KEY)
+    if (existing) {
+      const cur = String(existing)
+      const next = String(message)
+      if (cur === next) return
+      const curExpired = cur.includes('过期')
+      const nextExpired = next.includes('过期')
+      // 已经有“过期”提示时，不要被“请先登录”覆盖
+      if (curExpired && !nextExpired) return
+      // 只有更强的“过期”提示才允许覆盖
+      if (!nextExpired) return
+    }
+    uni.setStorageSync(NB_AUTH_NOTICE_KEY, String(message))
+  } catch {}
+}
+
+function handleAuthExpired(reason) {
+  const now = Date.now()
+  if (authRedirecting && now - authRedirectAtMs < 1500) return
+  authRedirecting = true
+  authRedirectAtMs = now
+
+  try {
+    uni.removeStorageSync('token')
+    uni.removeStorageSync('user')
+    uni.removeStorageSync('currentBaby')
+  } catch {}
+
+  // 让登录页知道“为何回到这里”（一次性提示）
+  const msg = reason === 'expired'
+    ? '登录已过期，请重新登录'
+    : '请先登录'
+  setAuthNotice(msg)
+
+  // 避免在登录页再次触发 reLaunch 导致闪烁/循环
+  if (!isOnLoginPage()) {
+    try {
+      uni.reLaunch({ url: '/pages/login/index' })
+    } catch {}
+  }
+
+  setTimeout(() => {
+    authRedirecting = false
+  }, 2000)
+}
+
 function toQueryString(data) {
   if (!data || typeof data !== 'object') return ''
   const pairs = []
@@ -17,6 +93,16 @@ function toQueryString(data) {
     pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
   }
   return pairs.length ? pairs.join('&') : ''
+}
+
+function sanitizeLogData(data) {
+  if (!data || typeof data !== 'object') return data
+  const masked = new Set(['password', 'old_password', 'new_password'])
+  const out = Array.isArray(data) ? [...data] : { ...data }
+  for (const k of Object.keys(out)) {
+    if (masked.has(k)) out[k] = '***'
+  }
+  return out
 }
 
 function buildUrl(baseURL, path, method, data) {
@@ -40,10 +126,12 @@ class ApiClient {
       const method = options.method || 'GET'
       const data = options.data || {}
       const fullUrl = buildUrl(this.baseURL, options.url, method, data)
+      const isPublic = isPublicApiPath(options.url)
+      const silent = !!options.silent
 
-      if (isDev) {
+      if (isDev && !silent) {
         // 控制台噪音会显著增加排障成本，这里仅在开发态打印关键字段
-        console.log(`[API] ${method} ${fullUrl}`, data)
+        console.log(`[API] ${method} ${fullUrl}`, sanitizeLogData(data))
       }
       
       // 强制优先使用fetch API（更好的CORS支持）
@@ -79,18 +167,28 @@ class ApiClient {
               // 非 JSON 响应（或空 body），保持为 null
             }
             
-            if (response.ok) {
-              resolve(resBody ?? {})
-            } else if (response.status === 401) {
-              uni.removeStorageSync('token')
-              uni.reLaunch({
-                url: '/pages/login/index'
-              })
-              reject(new Error('未登录或登录已过期'))
-            } else {
-              const errorMsg = resBody?.error || resBody?.message || `请求失败 (${response.status})`
-              console.error(`[API错误-fetch] ${fullUrl}`, errorMsg)
-              reject(new Error(errorMsg))
+	            if (response.ok) {
+	              resolve(resBody ?? {})
+	            } else if (response.status === 401) {
+                if (isPublic) {
+                  const errorMsg = resBody?.error || resBody?.message || `请求失败 (${response.status})`
+                  reject(new Error(errorMsg))
+                  return
+                }
+	              handleAuthExpired(token ? 'expired' : 'required')
+                const err = new Error(NB_AUTH_REDIRECT_TOAST_TITLE)
+                err.code = 'AUTH_EXPIRED'
+	              reject(err)
+	            } else {
+	              const errorMsg = resBody?.error || resBody?.message || `请求失败 (${response.status})`
+	              if (!silent) {
+                  const log = response.status >= 500 ? console.error : console.warn
+                  log(`[API ${response.status}] ${fullUrl}`, errorMsg)
+                }
+                const err = new Error(errorMsg)
+                err.status = response.status
+                err.url = fullUrl
+	              reject(err)
             }
           })
           .catch((error) => {
@@ -117,6 +215,8 @@ class ApiClient {
   requestWithUni(options, resolve, reject, token, fullUrl) {
     const method = options.method || 'GET'
     const upper = String(method).toUpperCase()
+    const isPublic = isPublicApiPath(options.url)
+    const silent = !!options.silent
     uni.request({
       url: fullUrl,
       method: upper,
@@ -131,24 +231,34 @@ class ApiClient {
       success: (res) => {
         if (isDev) console.log(`[API] ${res.statusCode} ${fullUrl}`, res.data)
         
-        if (res.statusCode === 200) {
-          resolve(res.data)
-        } else if (res.statusCode === 401) {
-          // Token过期，跳转登录
-          uni.removeStorageSync('token')
-          uni.reLaunch({
-            url: '/pages/login/index'
-          })
-          reject(new Error('未登录或登录已过期'))
-        } else {
-          const errorMsg = res.data?.error || res.data?.message || `请求失败 (${res.statusCode})`
-          console.error(`[API错误] ${fullUrl}`, errorMsg)
-          reject(new Error(errorMsg))
+	        if (res.statusCode === 200) {
+	          resolve(res.data)
+	        } else if (res.statusCode === 401) {
+            if (isPublic) {
+              const errorMsg = res.data?.error || res.data?.message || `请求失败 (${res.statusCode})`
+              reject(new Error(errorMsg))
+              return
+            }
+	          // Token过期/未登录，跳转登录（提示收敛到登录页）
+	          handleAuthExpired(token ? 'expired' : 'required')
+            const err = new Error(NB_AUTH_REDIRECT_TOAST_TITLE)
+            err.code = 'AUTH_EXPIRED'
+	          reject(err)
+	        } else {
+	          const errorMsg = res.data?.error || res.data?.message || `请求失败 (${res.statusCode})`
+            if (!silent) {
+              const log = res.statusCode >= 500 ? console.error : console.warn
+              log(`[API ${res.statusCode}] ${fullUrl}`, errorMsg)
+            }
+            const err = new Error(errorMsg)
+            err.status = res.statusCode
+            err.url = fullUrl
+	          reject(err)
         }
       },
       fail: (err) => {
         // 处理各种错误情况
-        console.error(`[API失败] ${fullUrl}`, err)
+        if (!silent) console.error(`[API失败] ${fullUrl}`, err)
         
         let errorMsg = '网络错误，请检查网络连接'
         
@@ -170,19 +280,23 @@ class ApiClient {
   }
   
   get(url, data) {
-    return this.request({ url, method: 'GET', data })
+    const opts = arguments.length >= 3 ? arguments[2] : null
+    return this.request({ url, method: 'GET', data, ...(opts && typeof opts === 'object' ? opts : {}) })
   }
   
   post(url, data) {
-    return this.request({ url, method: 'POST', data })
+    const opts = arguments.length >= 3 ? arguments[2] : null
+    return this.request({ url, method: 'POST', data, ...(opts && typeof opts === 'object' ? opts : {}) })
   }
   
   put(url, data) {
-    return this.request({ url, method: 'PUT', data })
+    const opts = arguments.length >= 3 ? arguments[2] : null
+    return this.request({ url, method: 'PUT', data, ...(opts && typeof opts === 'object' ? opts : {}) })
   }
   
   delete(url) {
-    return this.request({ url, method: 'DELETE' })
+    const opts = arguments.length >= 2 ? arguments[1] : null
+    return this.request({ url, method: 'DELETE', ...(opts && typeof opts === 'object' ? opts : {}) })
   }
 }
 

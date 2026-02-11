@@ -66,6 +66,22 @@ export const useUserStore = defineStore('user', {
         throw error
       }
     },
+
+    async updateProfile(payload = {}) {
+      try {
+        const body = {}
+        if (payload.nickname !== undefined) body.nickname = payload.nickname
+        if (payload.avatar_url !== undefined) body.avatar_url = payload.avatar_url
+        const res = await api.put('/user/profile', body)
+        if (res?.user) {
+          this.user = res.user
+          uni.setStorageSync('user', res.user)
+        }
+        return res
+      } catch (error) {
+        throw error
+      }
+    },
     
     async getProfile() {
       try {
@@ -83,6 +99,7 @@ export const useUserStore = defineStore('user', {
       this.currentBaby = null
       uni.removeStorageSync('token')
       uni.removeStorageSync('user')
+      uni.removeStorageSync('currentBaby')
       uni.reLaunch({
         url: '/pages/login/index'
       })

@@ -1,5 +1,7 @@
 <template>
   <view class="family-container">
+    <NbNetworkBanner />
+
     <view class="card">
       <text class="card-title">加入家庭</text>
       <text class="card-sub">输入 6 位邀请码即可加入并同步同一宝宝的数据</text>
@@ -25,9 +27,19 @@
         <text class="pill" v-if="myRole">{{ myRole === 'admin' ? '管理员' : '成员' }}</text>
       </view>
 
-      <view v-if="members.length === 0" class="empty">
-        <text class="empty-text">暂无成员信息</text>
-      </view>
+      <NbState v-if="membersLoading" embedded type="loading" title="加载中..." />
+
+      <NbState
+        v-else-if="membersError"
+        embedded
+        type="error"
+        title="加载失败"
+        :desc="membersError"
+        actionText="重试"
+        @action="loadMembers"
+      />
+
+      <NbState v-else-if="members.length === 0" embedded type="empty" title="暂无成员" :desc="emptyMembersDesc" />
 
       <view v-else class="members">
         <view v-for="m in members" :key="m.user_id" class="member">
@@ -70,32 +82,61 @@
         </button>
       </view>
     </view>
+
+    <NbConfirmSheet
+      :visible="removeSheetVisible"
+      title="移除成员"
+      :desc="removeSheetDesc"
+      confirmText="移除"
+      cancelText="取消"
+      confirmVariant="danger"
+      :loading="removing"
+      @confirm="confirmRemoveMember"
+      @cancel="cancelRemoveMember"
+    />
   </view>
 </template>
 
 <script>
 import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
+import NbConfirmSheet from '@/components/NbConfirmSheet.vue'
+import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
+import NbState from '@/components/NbState.vue'
 
 export default {
+  components: { NbConfirmSheet, NbNetworkBanner, NbState },
   data() {
     return {
       babyId: null,
       inviteCode: '',
       joining: false,
       members: [],
+      membersLoading: false,
+      membersError: '',
       myRole: '',
       meId: null,
 
       generating: false,
       generatedCode: '',
       expiresAt: '',
+
+      removeSheetVisible: false,
+      removing: false,
+      pendingRemoveMember: null,
     }
   },
 
   computed: {
     canManage() {
       return this.myRole === 'admin'
+    },
+    emptyMembersDesc() {
+      return this.canManage ? '生成邀请码邀请家人一起记' : '等待管理员邀请，或输入邀请码加入'
+    },
+    removeSheetDesc() {
+      const m = this.pendingRemoveMember || null
+      return `确定移除 ${m?.nickname || '该成员'} 吗？`
     },
     expiresAtDisplay() {
       if (!this.expiresAt) return ''
@@ -123,8 +164,15 @@ export default {
   },
 
   methods: {
+    onNbRetry() {
+      // 弱网恢复后：刷新家庭成员（如果已选宝宝）
+      if (this.babyId) this.loadMembers()
+    },
+
     async loadMembers() {
       if (!this.babyId) return
+      this.membersLoading = true
+      this.membersError = ''
       try {
         const res = await api.get(`/babies/${this.babyId}/family-members`)
         this.members = Array.isArray(res.members) ? res.members : []
@@ -132,6 +180,9 @@ export default {
         this.myRole = me?.role || ''
       } catch (e) {
         console.error('加载家庭成员失败', e)
+        this.membersError = e?.message || '加载失败'
+      } finally {
+        this.membersLoading = false
       }
     },
 
@@ -188,21 +239,30 @@ export default {
 
     removeMember(member) {
       if (!this.babyId || !member?.user_id) return
-      uni.showModal({
-        title: '确认移除',
-        content: `确定移除 ${member.nickname || '该成员'} 吗？`,
-        confirmText: '移除',
-        success: async (res) => {
-          if (!res.confirm) return
-          try {
-            await api.delete(`/babies/${this.babyId}/family-members/${member.user_id}`)
-            uni.showToast({ title: '已移除', icon: 'success' })
-            await this.loadMembers()
-          } catch (e) {
-            uni.showToast({ title: e.message || '移除失败', icon: 'none' })
-          }
-        },
-      })
+      this.pendingRemoveMember = member
+      this.removeSheetVisible = true
+    },
+
+    cancelRemoveMember() {
+      if (this.removing) return
+      this.removeSheetVisible = false
+      this.pendingRemoveMember = null
+    },
+
+    async confirmRemoveMember() {
+      const member = this.pendingRemoveMember
+      if (!this.babyId || !member?.user_id || this.removing) return
+      this.removing = true
+      try {
+        await api.delete(`/babies/${this.babyId}/family-members/${member.user_id}`)
+        uni.showToast({ title: '已移除', icon: 'success' })
+        await this.loadMembers()
+        this.cancelRemoveMember()
+      } catch (e) {
+        uni.showToast({ title: e.message || '移除失败', icon: 'none' })
+      } finally {
+        this.removing = false
+      }
     },
   },
 }
@@ -427,4 +487,3 @@ export default {
   font-size: 13px;
 }
 </style>
-

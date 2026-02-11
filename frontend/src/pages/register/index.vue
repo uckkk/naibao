@@ -1,5 +1,6 @@
 <template>
   <view class="nb-screen register-screen">
+    <NbNetworkBanner />
     <view class="nb-hero hero">
       <text class="nb-logo">🍼</text>
       <text class="nb-app-name">奶宝</text>
@@ -62,8 +63,10 @@
 
 <script>
 import { useUserStore } from '@/stores/user'
+import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
 
 export default {
+  components: { NbNetworkBanner },
   data() {
     return {
       phone: '',

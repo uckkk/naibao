@@ -1,9 +1,15 @@
 <template>
   <view class="nb-screen login-screen">
+    <NbNetworkBanner />
     <view class="nb-hero hero">
       <text class="nb-logo">🍼</text>
       <text class="nb-app-name">奶宝</text>
       <text class="nb-app-desc">纯奶粉喂养，科学记录</text>
+    </view>
+
+    <!-- 登录提示：仅在“跳转回登录页”时出现，点一下即可关闭 -->
+    <view v-if="notice" class="nb-notice" @click="notice = ''">
+      <text class="nb-notice-text">{{ notice }}</text>
     </view>
     
     <view class="nb-card card">
@@ -43,17 +49,28 @@
 
 <script>
 import { useUserStore } from '@/stores/user'
+import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
 
 export default {
+  components: { NbNetworkBanner },
   data() {
     return {
       phone: '',
       password: '',
-      loading: false
+      loading: false,
+      notice: ''
     }
   },
   
   onLoad() {
+    // 来自 API 401 的一次性提示（登录过期/未登录）
+    try {
+      const msg = uni.getStorageSync('nb_auth_notice')
+      if (msg) {
+        this.notice = String(msg)
+        uni.removeStorageSync('nb_auth_notice')
+      }
+    } catch {}
   },
   
   methods: {
@@ -129,6 +146,24 @@ export default {
 </script>
 
 <style scoped>
+.nb-notice {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto 14px;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: rgba(27, 26, 23, 0.06);
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  text-align: center;
+  user-select: none;
+}
+
+.nb-notice-text {
+  font-size: 13px;
+  color: rgba(27, 26, 23, 0.75);
+}
+
 .hero {
   animation: fadeInDown 0.55s ease-out;
 }

@@ -1,5 +1,6 @@
 <template>
   <view class="baby-info-container">
+    <NbNetworkBanner />
     <!-- 头像和昵称 -->
     <view class="avatar-section">
       <image 
@@ -9,19 +10,22 @@
         mode="aspectFill"
       />
       <text class="nickname-label">昵称</text>
-      <text class="nickname-value">{{ baby.nickname || '元宝' }}</text>
+      <text class="nickname-value">{{ baby.nickname || '宝宝' }}</text>
     </view>
     
     <!-- 信息字段 -->
     <view class="info-section">
       <view class="info-item" @click="editField('nickname')">
         <text class="label">昵称</text>
-        <text class="value-display">{{ baby.nickname || '元宝' }}</text>
+        <text class="value-display">{{ baby.nickname || '宝宝' }}</text>
       </view>
       
       <view class="info-item" @click="editField('birth_date')">
         <text class="label">出生日期</text>
-        <text class="value-display">{{ formatDateDisplay(baby.birth_date) || '未填写' }}</text>
+        <view class="value-stack">
+          <text class="value-display">{{ formatDateDisplay(baby.birth_date) || '未填写' }}</text>
+          <text v-if="zodiacText" class="value-sub">{{ zodiacText }}</text>
+        </view>
       </view>
       
       <view class="info-item" @click="editField('birth_time')">
@@ -29,11 +33,6 @@
         <text class="value-display">{{ formatTimeDisplay(baby.birth_time) || '未填写' }}</text>
       </view>
 
-      <view class="info-item readonly">
-        <text class="label">星座</text>
-        <text class="value-display">{{ zodiacText || '—' }}</text>
-      </view>
-      
       <view class="info-item" @click="editField('weight')">
         <text class="label">体重 <text class="unit">kg</text></text>
         <text class="value-display">{{ formatNumberDisplay(baby.current_weight) }}</text>
@@ -144,6 +143,24 @@
         </view>
       </view>
     </view>
+
+    <!-- 底部“完成”：H5 刷新/直达时可能没有返回栈，用它兜底回首页 -->
+    <view class="page-footer">
+      <button class="nb-primary-btn done-btn" :disabled="saving" @click="handleDone">
+        {{ saving ? '保存中...' : '完成' }}
+      </button>
+    </view>
+
+    <!-- 未完成也允许返回：避免“卡在建档流程”导致反复切换 -->
+    <NbConfirmSheet
+      :visible="incompleteSheetVisible"
+      title="宝宝资料未完成"
+      :desc="incompleteSheetDesc"
+      confirmText="继续填写"
+      cancelText="稍后再说"
+      @confirm="handleIncompleteContinue"
+      @cancel="handleIncompleteLater"
+    />
   </view>
 </template>
 
@@ -151,13 +168,18 @@
 import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import { formatZodiacText } from '@/utils/zodiac'
+import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
+import NbConfirmSheet from '@/components/NbConfirmSheet.vue'
+
+const DRAFT_KEY_NEW = 'nb_baby_draft_new_v1'
 
 export default {
+  components: { NbNetworkBanner, NbConfirmSheet },
   data() {
     return {
       baby: {
         id: null,
-        nickname: '',
+        nickname: '宝宝',
         avatar_url: '',
         birth_date: '',
         birth_time: '',
@@ -165,10 +187,16 @@ export default {
         current_height: ''
       },
       isNew: true,
+      dirty: false,
+      saving: false,
       showEditModal: false,
       editingField: '',
       editValue: '',
       editFieldName: '',
+
+      incompleteSheetVisible: false,
+      incompleteSheetDesc: '',
+      incompleteMissingField: '',
     }
   },
 
@@ -188,7 +216,13 @@ export default {
       if (userStore.currentBaby) {
         this.baby = { ...userStore.currentBaby }
         this.isNew = false
+        this.dirty = false
       }
+    }
+
+    // 新建时：如果用户中途返回/退出过，自动恢复草稿，避免反复切换
+    if (this.isNew && !this.baby.id) {
+      this.restoreDraft()
     }
   },
 
@@ -198,8 +232,157 @@ export default {
       this.loadBabyInfo()
     }
   },
+
+  onHide() {
+    // 兜底：避免弹窗打开时离开页面导致 body 滚动锁死，影响“返回首页/返回上一页”
+    this.unlockBodyScroll()
+
+    // 新建宝宝时：允许未完成就返回，下次进来自动继续
+    this.persistDraft()
+  },
+
+  onUnload() {
+    this.unlockBodyScroll()
+    this.persistDraft()
+  },
   
   methods: {
+    onNbRetry() {
+      if (this.baby?.id && !this.isNew) this.loadBabyInfo()
+    },
+
+    goBackOrHome() {
+      if (this.showEditModal) {
+        this.closeEditModal()
+        return
+      }
+
+      try {
+        if (typeof getCurrentPages === 'function') {
+          const pages = getCurrentPages() || []
+          if (pages.length > 1) {
+            uni.navigateBack()
+            return
+          }
+        }
+      } catch {}
+
+      // 无返回栈（例如 H5 刷新/分享直达）：回到首页（重置栈，避免卡在资料页）
+      uni.reLaunch({ url: '/pages/home/index' })
+    },
+
+    markDirty() {
+      this.dirty = true
+    },
+
+    persistDraft() {
+      // 仅对“新建宝宝”保存草稿，避免覆盖已存在宝宝的真实数据
+      if (!this.isNew || this.baby?.id) return
+      if (!this.dirty) return
+      try {
+        const draft = {
+          nickname: this.baby.nickname || '',
+          avatar_url: this.baby.avatar_url || '',
+          birth_date: this.baby.birth_date || '',
+          birth_time: this.baby.birth_time || '',
+          current_weight: this.baby.current_weight || '',
+          current_height: this.baby.current_height || '',
+        }
+        uni.setStorageSync(DRAFT_KEY_NEW, JSON.stringify(draft))
+      } catch {}
+    },
+
+    clearDraft() {
+      try {
+        uni.removeStorageSync(DRAFT_KEY_NEW)
+      } catch {}
+    },
+
+    restoreDraft() {
+      try {
+        const raw = uni.getStorageSync(DRAFT_KEY_NEW)
+        if (!raw) return
+        const d = JSON.parse(String(raw))
+        if (!d || typeof d !== 'object') return
+
+        const hasAny = ['nickname', 'avatar_url', 'birth_date', 'birth_time', 'current_weight', 'current_height']
+          .some((k) => String(d?.[k] || '').trim())
+        if (!hasAny) return
+
+        const nickname = String(d.nickname || '').trim()
+        this.baby = {
+          ...this.baby,
+          nickname: nickname || this.baby.nickname || '宝宝',
+          avatar_url: String(d.avatar_url || ''),
+          birth_date: String(d.birth_date || ''),
+          birth_time: String(d.birth_time || ''),
+          current_weight: String(d.current_weight || ''),
+          current_height: String(d.current_height || ''),
+        }
+        this.dirty = true
+      } catch {}
+    },
+
+    buildIncompleteDesc(missingField) {
+      if (missingField === 'birth_date') return '出生日期用于计算喂奶节奏与推荐量。\n你也可以稍后再填，内容会自动保留。'
+      if (missingField === 'nickname') return '给宝宝取个昵称，记录会更清晰。\n你也可以稍后再填，内容会自动保留。'
+      return '你也可以稍后再填，内容会自动保留。'
+    },
+
+    handleIncompleteContinue() {
+      this.incompleteSheetVisible = false
+      const field = this.incompleteMissingField || 'birth_date'
+      this.incompleteMissingField = ''
+      this.editField(field)
+    },
+
+    handleIncompleteLater() {
+      this.incompleteSheetVisible = false
+      this.incompleteMissingField = ''
+      this.persistDraft()
+      this.goBackOrHome()
+    },
+
+    async handleDone() {
+      if (this.showEditModal) {
+        this.closeEditModal()
+        return
+      }
+
+      // 没有任何改动：直接返回
+      if (!this.dirty && this.baby?.id) {
+        this.goBackOrHome()
+        return
+      }
+
+      // 新建未满足关键字段：允许稍后完善（不强行卡住）
+      const miss = this.getFirstMissingRequiredField()
+      if (miss) {
+        this.incompleteMissingField = miss
+        this.incompleteSheetDesc = this.buildIncompleteDesc(miss)
+        this.incompleteSheetVisible = true
+        return
+      }
+
+      // 保存并返回
+      const ok = await this.saveBabyInfo({ navigateAfter: true, showToast: true })
+      if (!ok) return
+    },
+
+    lockBodyScroll() {
+      if (typeof document === 'undefined' || !document.body) return
+      document.body.style.overflow = 'hidden'
+      document.body.style.position = 'fixed'
+      document.body.style.width = '100%'
+    },
+
+    unlockBodyScroll() {
+      if (typeof document === 'undefined' || !document.body) return
+      document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.width = ''
+    },
+
     async openNativeBirthDate() {
       const current = this.normalizeDateToYMD(this.editValue) || this.formatDateYMD(new Date())
       const picked = await this.openNativePicker('date', current)
@@ -217,6 +400,10 @@ export default {
       if (typeof document === 'undefined') return Promise.resolve(null)
       return new Promise((resolve) => {
         let done = false
+        let latestValue = ''
+        const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : ''
+        const isMobile = /iPhone|iPad|iPod|Android|Mobi/i.test(ua)
+
         const input = document.createElement('input')
         input.type = type
         input.value = value || ''
@@ -243,9 +430,21 @@ export default {
           resolve(v || null)
         }
 
-        input.addEventListener('change', () => finish(input.value))
+        const updateLatest = () => {
+          try {
+            latestValue = String(input.value || '').trim()
+          } catch {}
+        }
+
+        // iOS/部分 WebView：date/time 的 change 可能在滚动年月日/时分时频繁触发。
+        // 为避免“只能改一个字段就自动结束”，移动端以 blur 作为完成信号；桌面端仍在 change 立即完成。
+        input.addEventListener('input', updateLatest)
+        input.addEventListener('change', () => {
+          updateLatest()
+          if (!isMobile) finish(latestValue)
+        })
         // 取消/关闭时没有 change，依赖 blur 清理（iOS/微信内置浏览器表现一致）
-        input.addEventListener('blur', () => setTimeout(() => finish(null), 0), { once: true })
+        input.addEventListener('blur', () => setTimeout(() => finish(latestValue || null), 0), { once: true })
 
         document.body.appendChild(input)
 
@@ -315,11 +514,7 @@ export default {
       this.showEditModal = true
       
       // 禁用背景滚动
-      if (typeof document !== 'undefined' && document.body) {
-        document.body.style.overflow = 'hidden'
-        document.body.style.position = 'fixed'
-        document.body.style.width = '100%'
-      }
+      this.lockBodyScroll()
       
     },
     
@@ -329,11 +524,7 @@ export default {
       this.editValue = ''
       
       // 恢复背景滚动
-      if (typeof document !== 'undefined' && document.body) {
-        document.body.style.overflow = ''
-        document.body.style.position = ''
-        document.body.style.width = ''
-      }
+      this.unlockBodyScroll()
     },
     
     onEditDateChange(e) {
@@ -356,9 +547,30 @@ export default {
       } else {
         this.baby[this.editingField] = this.editValue
       }
-      
-      await this.saveBabyInfo()
+
+      this.markDirty()
+      this.persistDraft()
+
       this.closeEditModal()
+
+      // 体验优化：新建时不强制每次确认都校验/报错；当关键字段齐全后再自动保存（创建后停留本页继续完善）。
+      const missing = this.getFirstMissingRequiredField()
+      if (missing) {
+        // 新建流程：自动引导补齐下一个关键字段，减少“点来点去”。
+        if (this.isNew && !this.baby?.id && missing !== this.editingField) {
+          setTimeout(() => {
+            try { this.editField(missing) } catch {}
+          }, 0)
+        }
+        return
+      }
+
+      const willCreate = this.isNew && !this.baby?.id
+      await this.saveBabyInfo({
+        navigateAfter: false,
+        showToast: willCreate,
+        toastText: willCreate ? '已创建宝宝档案，可继续完善' : '',
+      })
     },
     
     formatDateYMD(date) {
@@ -426,30 +638,40 @@ export default {
       return s
     },
     
-    async saveBabyInfo() {
-      if (!this.baby.nickname) {
-        uni.showToast({
-          title: '请输入昵称',
-          icon: 'none'
-        })
-        return
-      }
-      
-      if (!this.baby.birth_date) {
-        uni.showToast({
-          title: '请选择出生日期',
-          icon: 'none'
-        })
-        return
+    getFirstMissingRequiredField() {
+      const name = String(this.baby?.nickname || '').trim()
+      if (!name) return 'nickname'
+      const ymd = this.normalizeDateToYMD(this.baby?.birth_date)
+      if (!ymd) return 'birth_date'
+      return ''
+    },
+
+    async saveBabyInfo(options = {}) {
+      const navigateAfter = !!options.navigateAfter
+      const showSuccessToast = options.showToast !== false
+      const showErrorToast = options.showErrorToast !== false
+      const toastText = String(options.toastText || '').trim()
+
+      const missing = this.getFirstMissingRequiredField()
+      if (missing) {
+        if (showErrorToast) {
+          uni.showToast({
+            title: missing === 'birth_date' ? '请选择出生日期' : '请输入昵称',
+            icon: 'none'
+          })
+        }
+        return false
       }
 
       const birthDateYmd = this.normalizeDateToYMD(this.baby.birth_date)
       if (!birthDateYmd) {
-        uni.showToast({
-          title: '出生日期格式不正确',
-          icon: 'none'
-        })
-        return
+        if (showErrorToast) {
+          uni.showToast({
+            title: '出生日期格式不正确',
+            icon: 'none'
+          })
+        }
+        return false
       }
 
       const weightNum = (() => {
@@ -461,8 +683,10 @@ export default {
         return Number.isFinite(n) && n > 0 ? n : null
       })()
       
+      if (this.saving) return false
+      this.saving = true
       try {
-        const created = this.isNew
+        const created = this.isNew || !this.baby?.id
         let res
         if (created) {
           const payload = {
@@ -490,23 +714,33 @@ export default {
         this.baby = res.baby
         this.isNew = false
         userStore.setCurrentBaby(res.baby)
-        
-        uni.showToast({
-          title: '保存成功',
-          icon: 'success'
-        })
 
-        // 创建宝宝后回到首页；更新则停留当前页，方便连续编辑多个字段
-        if (created) {
-          setTimeout(() => {
-            uni.navigateBack()
-          }, 500)
+        this.dirty = false
+        this.clearDraft()
+
+        if (showSuccessToast) {
+          uni.showToast({
+            title: toastText || '保存成功',
+            icon: 'success'
+          })
         }
+
+        if (navigateAfter) {
+          setTimeout(() => {
+            this.goBackOrHome()
+          }, 200)
+        }
+        return true
       } catch (error) {
-        uni.showToast({
-          title: error.message || '保存失败',
-          icon: 'none'
-        })
+        if (showErrorToast) {
+          uni.showToast({
+            title: error.message || '保存失败',
+            icon: 'none'
+          })
+        }
+        return false
+      } finally {
+        this.saving = false
       }
     }
   }
@@ -517,7 +751,7 @@ export default {
 .baby-info-container {
   min-height: 100vh;
   background: transparent;
-  padding: calc(12px + env(safe-area-inset-top, 0px)) 0 calc(24px + env(safe-area-inset-bottom, 0px));
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 0 calc(92px + env(safe-area-inset-bottom, 0px)); /* 底部完成按钮占位 */
   box-sizing: border-box;
 }
 
@@ -593,6 +827,36 @@ export default {
   font-size: 17px;
   font-weight: 600;
   color: var(--nb-text);
+}
+
+.value-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.value-sub {
+  font-size: 12px;
+  color: rgba(27, 26, 23, 0.55);
+}
+
+.page-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px var(--nb-page-x) calc(12px + env(safe-area-inset-bottom, 0px));
+  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid var(--nb-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.done-btn {
+  height: 48px;
+  border-radius: 24px;
+  font-weight: 700;
 }
 
 .edit-modal-overlay {

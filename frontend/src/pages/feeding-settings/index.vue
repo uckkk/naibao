@@ -1,5 +1,6 @@
 <template>
   <view class="settings-container">
+    <NbNetworkBanner />
     <NbState
       v-if="!babyId"
       type="info"
@@ -9,18 +10,66 @@
       @action="goToBabyInfo"
     />
 
-    <NbState v-else-if="pageLoading" type="loading" title="加载设置中..." />
+    <NbLoadingSwitch v-else :loading="pageLoading">
+      <template #skeleton>
+        <view class="section">
+          <view class="section-header">
+            <NbSkeleton :w="52" :h="16" :radius="8" />
+            <view style="margin-top:10px;">
+              <NbSkeleton :w="160" :h="12" :radius="6" />
+            </view>
+          </view>
+          <view class="number-picker-container">
+            <NbSkeleton :w="'100%'" :h="56" :radius="16" />
+          </view>
+        </view>
 
-    <NbState
-      v-else-if="errorText"
-      type="error"
-      title="加载失败"
-      :desc="errorText"
-      actionText="重试"
-      @action="init"
-    />
+        <view class="section">
+          <view class="section-header">
+            <NbSkeleton :w="52" :h="16" :radius="8" />
+            <view style="margin-top:10px;">
+              <NbSkeleton :w="160" :h="12" :radius="6" />
+            </view>
+          </view>
+          <view class="number-picker-container">
+            <NbSkeleton :w="'100%'" :h="56" :radius="16" />
+          </view>
+        </view>
 
-    <template v-else>
+        <view class="section">
+          <view class="section-header">
+            <NbSkeleton :w="96" :h="16" :radius="8" />
+          </view>
+          <view class="next-time-display">
+            <NbSkeleton :w="120" :h="26" :radius="13" />
+            <view style="margin-top:12px;display:flex;justify-content:center;">
+              <NbSkeleton :w="260" :h="12" :radius="6" />
+            </view>
+          </view>
+        </view>
+
+        <view class="section">
+          <view class="toggle-section">
+            <NbSkeleton :w="50" :h="30" :radius="15" />
+            <NbSkeleton :w="72" :h="14" :radius="7" />
+          </view>
+        </view>
+
+        <view class="footer">
+          <NbSkeleton :w="'100%'" :h="50" :radius="25" />
+        </view>
+      </template>
+
+      <NbState
+        v-if="errorText"
+        type="error"
+        title="加载失败"
+        :desc="errorText"
+        actionText="重试"
+        @action="init"
+      />
+
+      <template v-else>
     <!-- 白天设置 -->
     <view class="section">
       <view class="section-header">
@@ -73,13 +122,43 @@
     </view>
 
     <!-- 提醒开关 -->
-    <view class="section">
+    <view class="section" id="nb-focus-reminder">
       <view class="toggle-section">
         <view class="toggle-switch" :class="{ active: settings.reminderEnabled }" @click="toggleReminder">
           <view class="toggle-circle"></view>
         </view>
         <text class="toggle-label">应用内提醒</text>
       </view>
+    </view>
+
+    <!-- 系统通知权限（H5 Web Notification） -->
+    <view class="section" id="nb-focus-notify">
+      <view class="section-header">
+        <text class="section-title">系统通知</text>
+        <text class="section-desc">{{ systemNotifyStatusText }}</text>
+      </view>
+
+      <view class="toggle-section">
+        <view
+          class="toggle-switch"
+          :class="{ active: systemNotifyEffective }"
+          :style="{ opacity: systemNotifySupported ? 1 : 0.5 }"
+          @click="toggleSystemNotify"
+        >
+          <view class="toggle-circle"></view>
+        </view>
+        <text class="toggle-label">允许通知</text>
+
+        <button
+          class="mini-btn"
+          :class="{ disabled: !systemNotifyEffective }"
+          @click="sendTestNotify(false)"
+        >
+          测试
+        </button>
+      </view>
+
+      <text v-if="systemNotifyHintText" class="picker-hint">{{ systemNotifyHintText }}</text>
     </view>
 
     <!-- 提前提醒时长 -->
@@ -109,6 +188,7 @@
       </button>
     </view>
     </template>
+    </NbLoadingSwitch>
   </view>
 </template>
 
@@ -116,12 +196,26 @@
 import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import NbState from '@/components/NbState.vue'
+import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
+import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbSkeleton from '@/components/NbSkeleton.vue'
+import {
+  getNotificationPermission,
+  getSystemNotifyEnabled,
+  isNotificationSupported,
+  isStandalonePwa,
+  requestNotificationPermission,
+  sendSystemNotify,
+  setSystemNotifyEnabled,
+} from '@/utils/system_notify'
 
 export default {
-  components: { NbState },
+  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton },
   data() {
     return {
       babyId: null,
+      focusTarget: '',
+      focusDone: false,
       pageLoading: false,
       errorText: '',
       lastInitBabyId: null,
@@ -139,8 +233,43 @@ export default {
       nightNumbers: [3, 4, 5, 6, 7],
       advanceNumbers: [5, 10, 15, 20, 30],
       dirty: false,
-      saving: false
+      saving: false,
+
+      // 系统通知（H5）开关：本机偏好，不同步到后端
+      systemNotifySupported: false,
+      systemNotifyPermission: 'unsupported', // granted | denied | default | unsupported
+      systemNotifyEnabled: false,
     }
+  },
+
+  computed: {
+    systemNotifyEffective() {
+      return !!(this.systemNotifySupported && this.systemNotifyEnabled && this.systemNotifyPermission === 'granted')
+    },
+
+    systemNotifyStatusText() {
+      if (!this.systemNotifySupported) return '当前环境不支持'
+      const p = String(this.systemNotifyPermission || 'default')
+      if (p === 'granted') return '已允许'
+      if (p === 'denied') return '已拒绝'
+      return '未授权'
+    },
+
+    systemNotifyHintText() {
+      if (!this.systemNotifySupported) return '系统通知依赖浏览器能力：当前环境不支持'
+
+      if (String(this.systemNotifyPermission || 'default') === 'denied') {
+        return '你已拒绝通知权限；需到浏览器/系统的站点设置中手动开启'
+      }
+
+      // iOS：更常见的失败原因是未安装到主屏
+      if (this.isIOSPlatform() && !isStandalonePwa()) {
+        return 'iPhone：建议先“添加到主屏幕”再开启系统通知（Safari 内可能无法接收）'
+      }
+
+      if (!this.systemNotifyEffective) return '开启后，退到后台时会尽量用系统通知提醒（不同机型/浏览器可能有差异）'
+      return ''
+    },
   },
   
   onLoad(options) {
@@ -152,6 +281,7 @@ export default {
         this.babyId = userStore.currentBaby.id
       }
     }
+    this.focusTarget = String(options.focus || '').trim()
   },
 
   onShow() {
@@ -165,9 +295,16 @@ export default {
     if (this.babyId && String(this.lastInitBabyId) !== String(this.babyId)) {
       this.init()
     }
+
+    // 通知权限可能在系统设置中被更改：每次回到页面刷新一下状态
+    this.refreshSystemNotifyState()
   },
   
   methods: {
+    onNbRetry() {
+      this.init()
+    },
+
     async init() {
       if (!this.babyId) return
       this.pageLoading = true
@@ -180,7 +317,23 @@ export default {
         this.errorText = e?.message || '加载失败'
       } finally {
         this.pageLoading = false
+        this.refreshSystemNotifyState()
+        this.maybeScrollToFocus()
       }
+    },
+
+    maybeScrollToFocus() {
+      const target = String(this.focusTarget || '').trim()
+      if (!target || this.focusDone) return
+      if (this.pageLoading || this.errorText) return
+      this.focusDone = true
+      const selector = target === 'notify' ? '#nb-focus-notify' : target === 'reminder' ? '#nb-focus-reminder' : ''
+      if (!selector) return
+      this.$nextTick(() => {
+        try {
+          uni.pageScrollTo({ selector, duration: 220 })
+        } catch {}
+      })
     },
 
     async loadSettings() {
@@ -245,6 +398,82 @@ export default {
     toggleReminder() {
       this.settings.reminderEnabled = !this.settings.reminderEnabled
       this.markDirty()
+    },
+
+    isIOSPlatform() {
+      try {
+        const sys = uni.getSystemInfoSync()
+        const p = String(sys?.platform || sys?.osName || '').toLowerCase()
+        return p.includes('ios') || p.includes('iphone') || p.includes('ipad')
+      } catch {
+        return false
+      }
+    },
+
+    refreshSystemNotifyState() {
+      this.systemNotifySupported = isNotificationSupported()
+      this.systemNotifyPermission = getNotificationPermission()
+      this.systemNotifyEnabled = getSystemNotifyEnabled()
+
+      // 权限被撤销时：避免 UI 显示为“已开启”造成误导
+      if (this.systemNotifyPermission !== 'granted' && this.systemNotifyEnabled) {
+        this.systemNotifyEnabled = false
+      }
+    },
+
+    async toggleSystemNotify() {
+      if (!this.systemNotifySupported) {
+        uni.showToast({ title: '当前环境不支持系统通知', icon: 'none' })
+        return
+      }
+
+      // 关闭：只改本机开关，不影响“应用内提醒”
+      if (this.systemNotifyEnabled) {
+        this.systemNotifyEnabled = false
+        setSystemNotifyEnabled(false)
+        uni.showToast({ title: '已关闭系统通知', icon: 'none' })
+        return
+      }
+
+      // 开启：请求权限（需用户手势触发）
+      const perm = await requestNotificationPermission()
+      this.systemNotifyPermission = perm
+      if (perm !== 'granted') {
+        setSystemNotifyEnabled(false)
+        this.systemNotifyEnabled = false
+        uni.showToast({
+          title: perm === 'denied' ? '你拒绝了通知权限' : '未开启通知权限',
+          icon: 'none',
+        })
+        return
+      }
+
+      setSystemNotifyEnabled(true)
+      this.systemNotifyEnabled = true
+      uni.showToast({ title: '已开启系统通知', icon: 'none' })
+
+      // 轻量确认：发一条“测试通知”，让用户知道确实拿到了系统权限
+      this.sendTestNotify(true)
+    },
+
+    sendTestNotify(silent) {
+      const isSilent = typeof silent === 'boolean' ? silent : false
+      if (!this.systemNotifyEffective) {
+        if (!isSilent) uni.showToast({ title: '请先允许系统通知', icon: 'none' })
+        return
+      }
+      const t = '奶宝提醒已开启'
+      const body = '下次喂奶到点/提前会尽量用系统通知提示你'
+      const n = sendSystemNotify(t, {
+        body,
+        icon: '/static/naiping1.svg',
+        tag: 'naibao-test',
+      })
+      if (!n && !isSilent) {
+        uni.showToast({ title: '发送失败（可能被系统拦截）', icon: 'none' })
+        return
+      }
+      if (!isSilent) uni.showToast({ title: '已发送测试通知', icon: 'none' })
     },
 
     async saveSettings() {
@@ -449,5 +678,26 @@ export default {
 .save-btn[disabled] {
   background: #f0f0f0;
   color: #999;
+}
+
+.mini-btn {
+  margin-left: auto;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 26, 23, 0.12);
+  background: rgba(27, 26, 23, 0.04);
+  color: rgba(27, 26, 23, 0.86);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 34px;
+}
+
+.mini-btn[disabled] {
+  opacity: 0.4;
+}
+
+.mini-btn.disabled {
+  opacity: 0.45;
 }
 </style>

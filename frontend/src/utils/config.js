@@ -16,7 +16,7 @@ export default {
     }
 
     // 其他平台：默认本机开发地址；生产请务必配置 VITE_API_BASE_URL
-    return 'http://localhost:8080'
+    return 'http://localhost:18080'
   })(),
   
   // 超时时间（毫秒）

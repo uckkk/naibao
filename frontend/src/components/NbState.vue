@@ -1,5 +1,5 @@
 <template>
-  <view class="nb-state" :class="`t-${type}`">
+  <view class="nb-state" :class="[`t-${type}`, { embedded }]">
     <view class="icon" aria-hidden="true">
       <text class="icon-text">{{ iconText }}</text>
     </view>
@@ -24,6 +24,7 @@ export default {
     title: { type: String, default: '' },
     desc: { type: String, default: '' },
     actionText: { type: String, default: '' },
+    embedded: { type: Boolean, default: false }, // 嵌入式：用于卡片内部，弱化边框与阴影
   },
   emits: ['action'],
   computed: {
@@ -60,6 +61,17 @@ export default {
   gap: 10px;
   box-sizing: border-box;
   box-shadow: 0 18px 50px rgba(27, 26, 23, 0.10);
+}
+
+.nb-state.embedded {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 10px 0;
+}
+
+.nb-state.embedded .icon {
+  display: none;
 }
 
 .icon {

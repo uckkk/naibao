@@ -27,10 +27,15 @@ const uni = uniPlugin.default
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '')
-  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:8080'
+  // macOS 下 OrbStack 可能占用 8080；本项目本机默认后端端口改为 18080（可用环境变量覆盖）。
+  const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:18080'
   const isH5 = process.env.UNI_PLATFORM === 'h5'
+  // GitHub Pages：默认是 /<repo>/ 子路径；自定义域名则是根路径。
+  // 用相对 base 可同时兼容两种访问方式（且 uni-h5 使用 hash 路由，不依赖服务端 rewrite）。
+  const base = mode === 'production' ? './' : '/'
 
   return {
+    base,
     plugins: [
       uni()
     ],
