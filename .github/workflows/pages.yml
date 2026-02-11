@@ -1,0 +1,63 @@
+name: Deploy H5 to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
+
+      - name: Install deps
+        run: npm --prefix "frontend" ci
+
+      - name: Build H5
+        env:
+          # 生产默认：前端在 naibao.me，后端通过 Cloudflare Tunnel 暴露为 api.naibao.me
+          VITE_API_BASE_URL: "https://api.naibao.me"
+        run: npm --prefix "frontend" run build:h5
+
+      - name: Pages meta files
+        run: |
+          echo "naibao.me" > "frontend/dist/build/h5/CNAME"
+          touch "frontend/dist/build/h5/.nojekyll"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "frontend/dist/build/h5"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+
