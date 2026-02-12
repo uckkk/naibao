@@ -91,8 +91,9 @@
           />
         </view>
 
-        <view class="baby-name-row">
+        <view class="baby-name-row" @click="goBabySwitch">
           <text class="baby-name-large">{{ currentBaby.nickname || '宝宝' }}</text>
+          <text class="baby-switch-chev">›</text>
         </view>
 
         <view class="baby-stats-row">
@@ -2832,6 +2833,10 @@ import { formatZodiacText } from '@/utils/zodiac'
         url: '/pages/baby-info/index'
       })
     },
+
+    goBabySwitch() {
+      uni.navigateTo({ url: '/pages/baby-switch/index' })
+    },
     
     showMenu() {
       // 统一入口：进入“设置”页（更像系统设置，信息与入口集中，不再用 ActionSheet 堆选项）
@@ -3028,12 +3033,24 @@ import { formatZodiacText } from '@/utils/zodiac'
   margin-bottom: 12px;
 }
 
+.baby-name-row:active {
+  opacity: 0.86;
+}
+
 .baby-name-large {
   font-size: 30px;
   font-weight: 800;
   color: #333;
   text-align: center;
   line-height: 1.2;
+}
+
+.baby-switch-chev {
+  font-size: 22px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.32);
+  line-height: 1;
+  transform: translateY(-1px);
 }
 
 .baby-stats-row {

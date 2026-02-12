@@ -178,19 +178,21 @@ import NbAvatarUpload from '@/components/NbAvatarUpload.vue'
 
 const DRAFT_KEY_NEW = 'nb_baby_draft_new_v1'
 
+const buildBlankBaby = () => ({
+  id: null,
+  nickname: '宝宝',
+  avatar_url: '',
+  birth_date: '',
+  birth_time: '',
+  current_weight: '',
+  current_height: '',
+})
+
 export default {
   components: { NbNetworkBanner, NbConfirmSheet, NbAvatarUpload },
   data() {
     return {
-      baby: {
-        id: null,
-        nickname: '宝宝',
-        avatar_url: '',
-        birth_date: '',
-        birth_time: '',
-        current_weight: '',
-        current_height: ''
-      },
+      baby: buildBlankBaby(),
       isNew: true,
       dirty: false,
       saving: false,
@@ -218,16 +220,42 @@ export default {
   },
   
   onLoad(options) {
-    if (options.id) {
-      this.baby.id = options.id
+    const mode = String(options?.mode || '').trim().toLowerCase()
+    const forceNew = mode === 'new'
+    const editId = !forceNew ? String(options?.id || '').trim() : ''
+
+    if (forceNew) {
+      // 多宝宝：显式“新建”必须是空白态，不复用 currentBaby
+      this.baby = buildBlankBaby()
+      this.isNew = true
+      this.dirty = false
+      try {
+        uni.setNavigationBarTitle({ title: '新建宝宝' })
+      } catch {}
+    } else if (editId) {
+      this.baby = { ...buildBlankBaby(), id: editId }
       this.isNew = false
+      this.dirty = false
+      try {
+        uni.setNavigationBarTitle({ title: '宝宝资料' })
+      } catch {}
       this.loadBabyInfo()
     } else {
       const userStore = useUserStore()
-      if (userStore.currentBaby) {
+      if (userStore.currentBaby?.id) {
         this.baby = { ...userStore.currentBaby }
         this.isNew = false
         this.dirty = false
+        try {
+          uni.setNavigationBarTitle({ title: '宝宝资料' })
+        } catch {}
+      } else {
+        this.baby = buildBlankBaby()
+        this.isNew = true
+        this.dirty = false
+        try {
+          uni.setNavigationBarTitle({ title: '新建宝宝' })
+        } catch {}
       }
     }
 

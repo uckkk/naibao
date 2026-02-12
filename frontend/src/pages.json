@@ -46,6 +46,12 @@
       }
     },
     {
+      "path": "pages/baby-switch/index",
+      "style": {
+        "navigationBarTitleText": "切换宝宝"
+      }
+    },
+    {
       "path": "pages/formula-select/index",
       "style": {
         "navigationBarTitleText": "选择奶粉"

@@ -123,10 +123,18 @@
       <text class="section-h">宝宝</text>
       <view class="group">
         <view class="cells">
+          <view class="cell tappable" @click="goBabySwitch">
+            <text class="cell-title">切换宝宝</text>
+            <view class="cell-right">
+              <text class="cell-value">{{ babyName }}</text>
+              <text class="chev">›</text>
+            </view>
+          </view>
+
           <view class="cell tappable" @click="goBabyInfo">
             <text class="cell-title">宝宝资料</text>
             <view class="cell-right">
-              <text class="cell-value">{{ babyName }}</text>
+              <text class="cell-value">{{ currentBaby?.id ? '编辑' : '去建档' }}</text>
               <text class="chev">›</text>
             </view>
           </view>
@@ -396,6 +404,10 @@ export default {
 
     goAccount() {
       uni.navigateTo({ url: '/pages/account/index' })
+    },
+
+    goBabySwitch() {
+      uni.navigateTo({ url: '/pages/baby-switch/index?returnTo=settings' })
     },
 
     goBabyInfo() {

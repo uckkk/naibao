@@ -131,6 +131,7 @@
       </view>
     </view>
 
+    <!-- #ifdef H5 -->
     <!-- 系统通知权限（H5 Web Notification） -->
     <view class="section" id="nb-focus-notify">
       <view class="section-header">
@@ -160,6 +161,7 @@
 
       <text v-if="systemNotifyHintText" class="picker-hint">{{ systemNotifyHintText }}</text>
     </view>
+    <!-- #endif -->
 
     <!-- 提前提醒时长 -->
     <view class="section" v-if="settings.reminderEnabled">
