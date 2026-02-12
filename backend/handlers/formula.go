@@ -137,7 +137,8 @@ func (h *FormulaHandler) GetCurrentFormula(c *gin.Context) {
 		Order("selected_at DESC").
 		Preload("Brand").
 		First(&selection).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "未选择奶粉"})
+		// 对客户端来说，“未选择”属于正常空态，不应以 404 触发控制台报错/弱网误判。
+		c.JSON(http.StatusOK, gin.H{"selection": nil})
 		return
 	}
 

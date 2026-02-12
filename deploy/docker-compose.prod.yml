@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-naibao}
+      POSTGRES_USER: ${POSTGRES_USER:-naibao_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      TZ: Asia/Shanghai
+    volumes:
+      - naibao_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      SERVER_PORT: "8080"
+      GIN_MODE: "release"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER:-naibao_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      DB_NAME: ${POSTGRES_DB:-naibao}
+      DB_SSLMODE: disable
+      DB_AUTO_MIGRATE: "false"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required}
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
+      # 可选：生产环境建议设置为你的前端域名（逗号分隔），例如：https://naibao.example.com
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  naibao_pg_data:
+  caddy_data:
+  caddy_config:
+

@@ -76,7 +76,8 @@ func (h *FormulaSpecHandler) GetCurrentSpecification(c *gin.Context) {
 	if err := h.DB.Where("baby_id = ? AND is_active = true", babyID).
 		Order("selected_at DESC").
 		First(&sel).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "未选择奶粉"})
+		// 对客户端来说，“未选择”属于正常空态，不应以 404 触发控制台报错/弱网误判。
+		c.JSON(http.StatusOK, gin.H{"specification": nil})
 		return
 	}
 
@@ -90,10 +91,10 @@ func (h *FormulaSpecHandler) GetCurrentSpecification(c *gin.Context) {
 
 	var spec models.FormulaSpecification
 	if err := q.Order("is_verified DESC, updated_at DESC").Preload("Brand").First(&spec).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "未找到奶粉规格"})
+		// 找不到规格数据也视为正常空态：前端可以提示“暂无官方数据，以包装为准”。避免 404 造成误报。
+		c.JSON(http.StatusOK, gin.H{"specification": nil})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"specification": spec})
 }
-

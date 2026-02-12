@@ -5,6 +5,10 @@
 - [快速开始](快速开始.md)
 - [部署指南](部署指南.md)
 - [README_部署](README_部署.md)
+- [数据库备份与恢复演练](数据库备份与恢复演练.md)
+- [本机托管运营台](本机托管运营台.md)
+- [GitHub Pages 前端托管](GitHubPages_前端托管.md)
+- [Cloudflare Tunnel 后端托管](CloudflareTunnel_后端托管.md)
 - [轻量应用服务器购买指南](轻量应用服务器购买指南.md)
 
 ## 服务器与网络排障

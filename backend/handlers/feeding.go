@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"naibao-backend/models"
 	"naibao-backend/services"
+	"naibao-backend/utils"
 	ws "naibao-backend/websocket"
 	"strconv"
 	"strings"
@@ -122,13 +123,21 @@ func (h *FeedingHandler) CreateFeeding(c *gin.Context) {
 		ageRef,
 	)
 	
-	// 解析时间
-	feedingTime := time.Now()
+	// 解析时间：默认使用服务端当前时间。
+	// 说明：喂奶记录不应出现在“未来”。部分设备/脚本可能传错时间戳，
+	// 会直接导致“下次喂奶倒计时”异常（例如显示十几个小时）。
+	serverNow := time.Now()
+	feedingTime := serverNow
 	if req.FeedingTime != "" {
-		parsedTime, err := time.Parse(time.RFC3339, req.FeedingTime)
-		if err == nil {
+		if parsedTime, err := time.Parse(time.RFC3339, req.FeedingTime); err == nil {
 			feedingTime = parsedTime
 		}
+	}
+	// 统一落库为“北京时间墙钟时间”（DB 字段为 TIMESTAMP 无时区，避免跨环境解析偏移）
+	feedingTime = feedingTime.In(utils.CNLocation())
+	// 允许轻微时钟偏差（2分钟），超出则强制回落到服务端 now。
+	if feedingTime.After(serverNow.Add(2 * time.Minute)) {
+		feedingTime = serverNow.In(utils.CNLocation())
 	}
 	
 	feeding := models.Feeding{
@@ -237,6 +246,11 @@ func (h *FeedingHandler) GetFeedings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return
 	}
+
+	// 修正 TIMESTAMP(无时区) 的解析：避免被驱动当作 UTC 导致整体 +8h 偏移
+	for i := range feedings {
+		feedings[i].FeedingTime = utils.ReinterpretAsCNWallClock(feedings[i].FeedingTime)
+	}
 	
 	c.JSON(http.StatusOK, gin.H{"feedings": feedings})
 }
@@ -305,20 +319,34 @@ func (h *FeedingHandler) GetFeedingStats(c *gin.Context) {
 		}
 	}
 
-	now := time.Now()
+	now := time.Now().In(utils.CNLocation())
+	futureGrace := 2 * time.Minute
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	endOfDay := startOfDay.AddDate(0, 0, 1)
 
 	// 获取今日喂养记录（限定当天范围，避免混入未来数据）
 	var todayFeedings []models.Feeding
-	h.DB.Where("baby_id = ? AND feeding_time >= ? AND feeding_time < ?", babyID, startOfDay, endOfDay).
+	upperBound := endOfDay
+	if now.Add(futureGrace).Before(upperBound) {
+		upperBound = now.Add(futureGrace)
+	}
+
+	h.DB.Where("baby_id = ? AND feeding_time >= ? AND feeding_time < ?", babyID, startOfDay, upperBound).
 		Find(&todayFeedings)
 
 	// 最近 7 天（含今天）：用于计算日均
 	periodStart := startOfDay.AddDate(0, 0, -6)
 	var recentFeedings []models.Feeding
-	h.DB.Where("baby_id = ? AND feeding_time >= ? AND feeding_time < ?", babyID, periodStart, endOfDay).
+	h.DB.Where("baby_id = ? AND feeding_time >= ? AND feeding_time < ?", babyID, periodStart, upperBound).
 		Find(&recentFeedings)
+
+	// 修正时间字段（见 utils.ReinterpretAsCNWallClock 注释）
+	for i := range todayFeedings {
+		todayFeedings[i].FeedingTime = utils.ReinterpretAsCNWallClock(todayFeedings[i].FeedingTime)
+	}
+	for i := range recentFeedings {
+		recentFeedings[i].FeedingTime = utils.ReinterpretAsCNWallClock(recentFeedings[i].FeedingTime)
+	}
 	
 	// 计算今日总奶量
 	todayAmount := 0
@@ -363,9 +391,11 @@ func (h *FeedingHandler) GetFeedingStats(c *gin.Context) {
 	if recommended.RemainingTimes > 0 {
 		// 以“上次喂奶时间 + 时段间隔”计算，体验更符合用户预期
 		var lastFeeding models.Feeding
-		h.DB.Where("baby_id = ?", babyID).
+		// 兜底：忽略未来时间的异常记录，避免把“未来记录”当作上次喂奶导致倒计时失真
+		_ = h.DB.Where("baby_id = ? AND feeding_time <= ?", babyID, now.Add(futureGrace)).
 			Order("feeding_time DESC").
-			First(&lastFeeding)
+			First(&lastFeeding).Error
+		lastFeeding.FeedingTime = utils.ReinterpretAsCNWallClock(lastFeeding.FeedingTime)
 
 		nextTime := h.MilkCalc.CalculateNextFeedingTime(
 			now,
@@ -409,6 +439,7 @@ func (h *FeedingHandler) UpdateFeeding(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "记录不存在"})
 		return
 	}
+	feeding.FeedingTime = utils.ReinterpretAsCNWallClock(feeding.FeedingTime)
 
 	// 权限：管理员可编辑任意记录；成员仅可编辑自己创建的记录
 	var baby models.Baby
@@ -439,7 +470,14 @@ func (h *FeedingHandler) UpdateFeeding(c *gin.Context) {
 	if req.FeedingTime != "" {
 		parsedTime, err := time.Parse(time.RFC3339, req.FeedingTime)
 		if err == nil {
-			feeding.FeedingTime = parsedTime
+			loc := utils.CNLocation()
+			t := parsedTime.In(loc)
+			// 不允许“未来喂奶时间”，避免破坏倒计时/统计（允许轻微时钟偏差）
+			serverNow := time.Now().In(loc)
+			if t.After(serverNow.Add(2 * time.Minute)) {
+				t = serverNow
+			}
+			feeding.FeedingTime = t
 		}
 	}
 	if req.FormulaBrandID != nil {
@@ -456,6 +494,7 @@ func (h *FeedingHandler) UpdateFeeding(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
 		return
 	}
+	feeding.FeedingTime = utils.ReinterpretAsCNWallClock(feeding.FeedingTime)
 
 	logOperation(h.DB, userID, "update", "feeding", feeding.ID, before, feeding)
 	broadcastEvent(h.Hub, feeding.BabyID, "feeding", "update", feeding.ID)

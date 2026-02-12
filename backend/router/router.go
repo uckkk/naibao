@@ -37,8 +37,11 @@ func SetupRouter(db *gorm.DB, rdb *redis.Client, hub *websocket.Hub, cfg *config
 		// 公开接口
 		{
 			authHandler := handlers.NewAuthHandler(db)
-			api.POST("/public/register", authHandler.Register)
-			api.POST("/public/login", authHandler.Login)
+			public := api.Group("/public")
+			// 公网必做：登录/注册限流（IP + 账号维度），降低暴力尝试风险
+			public.Use(middleware.AuthRateLimit())
+			public.POST("/register", authHandler.Register)
+			public.POST("/login", authHandler.Login)
 		}
 		
 		// 需要认证的接口
@@ -48,7 +51,9 @@ func SetupRouter(db *gorm.DB, rdb *redis.Client, hub *websocket.Hub, cfg *config
 			// 用户相关
 			userHandler := handlers.NewUserHandler(db)
 			auth.GET("/user/profile", userHandler.GetProfile)
+			auth.PUT("/user/profile", userHandler.UpdateProfile)
 			auth.PUT("/user/avatar", userHandler.UpdateAvatar)
+			auth.PUT("/user/password", userHandler.UpdatePassword)
 			
 			// 宝宝相关
 			babyHandler := handlers.NewBabyHandler(db)
@@ -101,6 +106,12 @@ func SetupRouter(db *gorm.DB, rdb *redis.Client, hub *websocket.Hub, cfg *config
 			familyHandler := &handlers.FamilyHandler{DB: db}
 			auth.GET("/babies/:id/family-members", familyHandler.GetFamilyMembers)
 			auth.DELETE("/babies/:id/family-members/:userId", familyHandler.RemoveFamilyMember)
+
+			// 转奶计划（宝宝级配置）
+			weaningHandler := &handlers.WeaningPlanHandler{DB: db, Hub: hub}
+			auth.GET("/babies/:id/weaning-plan", weaningHandler.GetCurrent)
+			auth.POST("/babies/:id/weaning-plan", weaningHandler.Create)
+			auth.PUT("/babies/:id/weaning-plan", weaningHandler.UpdateStatus)
 
 			// 邀请码：生成/使用
 			inviteHandler := &handlers.InviteHandler{DB: db}

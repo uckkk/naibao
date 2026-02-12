@@ -1,0 +1,29 @@
+{$DOMAIN} {
+  # 静态站点（uni-h5）：hash 路由为主，但仍保留 try_files 作为兜底
+  root * /srv
+
+  # API / WS 同源反代：前端默认走 window.location.origin + /api
+  @api path /api* 
+  handle @api {
+    reverse_proxy backend:8080
+  }
+
+  @ws path /ws*
+  handle @ws {
+    reverse_proxy backend:8080
+  }
+
+  # 静态资源：优先尝试真实文件，否则回退到首页（避免某些 WebView 对 path 解析差异）
+  try_files {path} /index.html
+  file_server
+
+  encode zstd gzip
+
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "no-referrer"
+  }
+}
+

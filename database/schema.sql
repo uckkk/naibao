@@ -236,3 +236,31 @@ CREATE TABLE subscriptions (
 
 CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX idx_subscriptions_status ON subscriptions(status);
+
+-- 转奶计划表（宝宝级配置，最多同时一个 active/paused；历史记录保留）
+CREATE TABLE weaning_plans (
+    id SERIAL PRIMARY KEY,
+    baby_id INTEGER NOT NULL REFERENCES babies(id),
+    created_by INTEGER NOT NULL REFERENCES users(id),
+
+    mode VARCHAR(20) DEFAULT 'alternate', -- 'alternate'(推荐) / 'mix'(二期)
+    duration_days INTEGER DEFAULT 7,
+
+    old_brand_id INTEGER NOT NULL REFERENCES formula_brands(id),
+    old_series_name VARCHAR(100),
+    old_age_range VARCHAR(20),
+    new_brand_id INTEGER NOT NULL REFERENCES formula_brands(id),
+    new_series_name VARCHAR(100),
+    new_age_range VARCHAR(20),
+
+    start_at TIMESTAMP NOT NULL,
+    paused_at TIMESTAMP,
+    ended_at TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'active', -- active/paused/ended
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_weaning_plans_baby_id ON weaning_plans(baby_id);
+CREATE INDEX idx_weaning_plans_status ON weaning_plans(status);

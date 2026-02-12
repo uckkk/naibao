@@ -7,7 +7,8 @@ services:
       POSTGRES_PASSWORD: naibao_password
       TZ: Asia/Shanghai
     ports:
-      - "5432:5432"
+      # 避免与本机已有 PostgreSQL 冲突（常见占用 5432）
+      - "5433:5432"
     volumes:
       - naibao_pg_data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
@@ -21,7 +22,8 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      # 避免与本机已有 Redis 冲突（常见占用 6379）
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 2s
@@ -50,7 +52,8 @@ services:
       # 管理员白名单（逗号分隔的 user_id）；本地可用：ADMIN_USER_IDS=52 docker compose up -d --build backend
       ADMIN_USER_IDS: "${ADMIN_USER_IDS:-}"
     ports:
-      - "8080:8080"
+      # macOS 下 OrbStack 可能占用 8080，默认改为 18080（可通过 NB_BACKEND_HOST_PORT 覆盖）。
+      - "${NB_BACKEND_HOST_PORT:-18080}:8080"
     depends_on:
       db:
         condition: service_healthy

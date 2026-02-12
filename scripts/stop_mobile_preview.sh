@@ -10,6 +10,17 @@ FRONT_DIR="${ROOT_DIR}/frontend"
 DEV_PID_FILE="${FRONT_DIR}/dev-h5.pid"
 TUN_PID_FILE="${FRONT_DIR}/cloudflared.pid"
 
+safe_rm() {
+  python3 - <<PY
+import os
+path = r"$1"
+try:
+    os.remove(path)
+except FileNotFoundError:
+    pass
+PY
+}
+
 stop_pid() {
   local pid_file="$1"
   local name="$2"
@@ -20,7 +31,7 @@ stop_pid() {
   local pid
   pid="$(cat "${pid_file}" 2>/dev/null || true)"
   if [ -z "${pid}" ]; then
-    rm -f "${pid_file}"
+    safe_rm "${pid_file}"
     echo "${name}: not running"
     return 0
   fi
@@ -30,9 +41,8 @@ stop_pid() {
   else
     echo "${name}: stale pid file (pid=${pid})"
   fi
-  rm -f "${pid_file}"
+  safe_rm "${pid_file}"
 }
 
 stop_pid "${TUN_PID_FILE}" "cloudflared"
 stop_pid "${DEV_PID_FILE}" "frontend"
-

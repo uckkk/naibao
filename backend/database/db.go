@@ -45,6 +45,7 @@ func InitDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 			&models.FormulaSpecification{},
 			&models.UserFormulaSelection{},
 			&models.OperationLog{},
+			&models.WeaningPlan{},
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to auto migrate: %w", err)

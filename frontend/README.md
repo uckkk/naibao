@@ -14,7 +14,7 @@
 ### 1. 启动开发服务器
 
 ```bash
-cd /Users/stonem2/Documents/AiCode/naibao/frontend
+cd "<你的项目目录>/naibao/frontend"
 npm run dev:h5
 ```
 
@@ -61,4 +61,3 @@ server: {
 ---
 
 **现在运行 `npm run dev:h5` 即可！** 🎉
-

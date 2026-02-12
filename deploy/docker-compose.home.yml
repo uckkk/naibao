@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-naibao}
+      POSTGRES_USER: ${POSTGRES_USER:-naibao_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      TZ: Asia/Shanghai
+    volumes:
+      - naibao_pg_data:/var/lib/postgresql/data
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ../database/init_data.sql:/docker-entrypoint-initdb.d/02_init_data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      SERVER_PORT: "8080"
+      GIN_MODE: "release"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER:-naibao_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      DB_NAME: ${POSTGRES_DB:-naibao}
+      DB_SSLMODE: disable
+      DB_AUTO_MIGRATE: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required}
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
+      # GitHub Pages 前端域名（逗号分隔），例如：https://naibao.me,https://www.naibao.me
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
+    ports:
+      # macOS 下 OrbStack 可能占用 8080，默认改为 18080；可通过 deploy/.env.home 覆盖。
+      - "${NB_BACKEND_HOST_PORT:-18080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  naibao_pg_data:

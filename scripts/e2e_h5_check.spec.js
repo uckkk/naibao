@@ -1,10 +1,11 @@
 // H5 E2E: 覆盖“注册/建档/投喂/选择奶粉/喂奶设置/数据页/退出登录”关键路径
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
 
 function genPhone() {
-  // 生成 11 位中国手机号：1 + 10 位
+  // 生成 11 位中国手机号：13 + 9 位（满足前端正则 ^1[3-9]\\d{9}$）
   const t = Date.now().toString();
-  return '1' + t.slice(-10);
+  return '13' + t.slice(-9);
 }
 
 async function waitForHash(page, includes, timeout = 15000) {
@@ -16,10 +17,9 @@ async function waitForHash(page, includes, timeout = 15000) {
         if (typeof location !== 'undefined' && String(location.hash || '').includes(includes)) return true;
         if (typeof getCurrentPages === 'function') {
           const pages = getCurrentPages() || [];
-          return pages.some((p) => {
-            const route = (p && (p.route || p.$page?.route)) || '';
-            return typeof route === 'string' && route.includes(target);
-          });
+          const last = pages[pages.length - 1];
+          const route = (last && (last.route || last.$page?.route)) || '';
+          return typeof route === 'string' && route.includes(target);
         }
       } catch {}
       return false;
@@ -32,9 +32,26 @@ async function waitForHash(page, includes, timeout = 15000) {
 // 默认 30s 不足以覆盖真实浏览器 channel 启动 + uni-h5 首屏加载
 test.describe.configure({ mode: 'serial', timeout: 180000 });
 
+// 兼容本机没有把 Chrome 安装在 /Applications 的情况（例如放在外挂盘 tools/）。
+// 优先走环境变量，便于 CI/他人机器覆盖。
+function pickChromeBin() {
+  const candidates = [
+    process.env.CHROME_BIN,
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  ].filter(Boolean);
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch {}
+  }
+  return null;
+}
+
+const CHROME_BIN = pickChromeBin();
+
 test.use({
-  // 使用系统 Chrome，避免依赖 Playwright 自带浏览器下载状态
-  channel: 'chrome',
+  // 使用系统 Chrome（executablePath），避免依赖 Playwright 自带浏览器下载状态
+  launchOptions: CHROME_BIN ? { executablePath: CHROME_BIN } : {},
   viewport: { width: 390, height: 844 }
 });
 
@@ -42,7 +59,6 @@ test('H5 关键用户旅程', async ({ page }) => {
   const base = 'http://127.0.0.1:5173';
   const phone = genPhone();
   const password = 'pass1234';
-  const todayDay = String(new Date().getDate()).padStart(2, '0');
   let babyId = null;
 
   await page.goto(`${base}/#/pages/login/index`, { waitUntil: 'domcontentloaded' });
@@ -136,7 +152,17 @@ test('H5 关键用户旅程', async ({ page }) => {
 
   await page.goto(`${base}/#/pages/home/index`, { waitUntil: 'domcontentloaded' });
   await waitForHash(page, '/pages/home/index', 20000);
-  await expect(page.locator('.today-hint-text')).toContainText('喂奶记录过于频繁', { timeout: 20000 });
+  // 频繁喂奶提示：收敛到首页状态 pill（更像产品，而不是每页一个提示框）
+  await expect(page.locator('.health-pill-text')).toContainText('记录过密', { timeout: 20000 });
+
+  // 打开“今日喂奶记录”抽屉：列表不应空白（历史回归）
+  await page.locator('.ft24-track').first().click();
+  await expect(page.getByText('今日喂奶记录')).toBeVisible({ timeout: 20000 });
+  await expect(page.locator('.today-item').first()).toBeVisible({ timeout: 20000 });
+  // 回归：未左滑时，不应露出“编辑/删除”操作区（避免与内容重叠）
+  await expect(page.locator('.today-swipe-actions')).toHaveCount(0);
+  await page.getByText('关闭').click();
+  await waitForHash(page, '/pages/home/index', 20000);
 
   // 宝宝资料：更换宝宝头像（覆盖 avatar-select 全链路）
   await page.locator('.baby-avatar-large').click();
@@ -158,19 +184,52 @@ test('H5 关键用户旅程', async ({ page }) => {
   await page.goBack();
   await waitForHash(page, '/pages/home/index', 20000);
 
-  // 菜单：选择奶粉
+  // 入口收敛：菜单只进入“设置”，再下钻到具体功能
   await page.locator('.menu-icon').click();
-  await page.getByText('选择奶粉').click();
+  await waitForHash(page, '/pages/settings/index', 20000);
+  await page.getByText('奶粉').click();
   await waitForHash(page, '/pages/formula-select/index', 20000);
 
-  await expect(page.getByText('确认选择')).toBeVisible();
-  await page.locator('.brand-card').first().click();
-  await page.getByText('确认选择').click();
-  await waitForHash(page, '/pages/home/index', 20000);
+  await expect(page.getByText('购买偏好')).toBeVisible();
+  await page.locator('.brand-cell').first().click();
+  await page.waitForSelector('uni-button.formula-save-btn:not([disabled])', { timeout: 20000 });
+  await page.locator('uni-button.formula-save-btn').click();
+  // 从“设置 -> 奶粉”进入，保存后应回到设置页
+  await waitForHash(page, '/pages/settings/index', 20000);
 
-  // 菜单：喂奶设置（修改并保存）
+  // 再次切换到另一个品牌：应提示开启 7 天转奶期（交替喂次，不混合）
+  await page.getByText('奶粉').click();
+  await waitForHash(page, '/pages/formula-select/index', 20000);
+  await page.locator('.brand-cell').nth(1).click();
+  await page.waitForSelector('uni-button.formula-save-btn:not([disabled])', { timeout: 20000 });
+  await page.locator('uni-button.formula-save-btn').click();
+  await expect(page.getByText('开始转奶期？')).toBeVisible({ timeout: 20000 });
+  await page.getByText('开始 7 天转奶').click();
+  await waitForHash(page, '/pages/settings/index', 20000);
+
+  // 回到首页：应展示转奶 pill & 投喂按钮旧/新标记
+  await page.goBack();
+  await waitForHash(page, '/pages/home/index', 20000);
+  await expect(page.locator('.weaning-pill-text')).toContainText('转奶', { timeout: 20000 });
+  await expect(page.locator('.feed-badge-text')).toBeVisible({ timeout: 20000 });
+
+  // 再进设置页继续后续流程
   await page.locator('.menu-icon').click();
-  await page.getByText('喂奶设置').click();
+  await waitForHash(page, '/pages/settings/index', 20000);
+
+  // 投喂偏好：选择并保存（高价值低风险能力补齐回归）
+  await page.getByText('投喂偏好').click();
+  await waitForHash(page, '/pages/preference/index', 20000);
+  await expect(page.getByText('投喂默认量')).toBeVisible();
+  await page.locator('.seg', { hasText: '偏多' }).click();
+  await page.waitForSelector('uni-button.save-btn:not([disabled])', { timeout: 20000 });
+  await page.locator('uni-button.save-btn').click();
+  await expect(page.locator('uni-button.save-btn')).toContainText('已保存', { timeout: 20000 });
+  await page.goBack();
+  await waitForHash(page, '/pages/settings/index', 20000);
+
+  // 喂奶设置（修改并保存）
+  await page.getByText('喂奶间隔').click();
   await waitForHash(page, '/pages/feeding-settings/index', 20000);
 
   // 点几个数字（可能不唯一，这里用 contains 文本定位）
@@ -179,20 +238,28 @@ test('H5 关键用户旅程', async ({ page }) => {
 
   await page.locator('.save-btn').click();
 
-  // 返回首页
+  // 返回设置页
   await page.goBack();
-  await waitForHash(page, '/pages/home/index', 20000);
+  await waitForHash(page, '/pages/settings/index', 20000);
+
+  // 常见问题：帮助入口可用（内容可见）
+  await page.getByText('常见问题').click();
+  await waitForHash(page, '/pages/help/index', 20000);
+  await expect(page.getByText('推荐奶量是怎么来的？')).toBeVisible();
+  await page.goBack();
+  await waitForHash(page, '/pages/settings/index', 20000);
 
   // 数据详情
-  await page.locator('.menu-icon').click();
   await page.getByText('数据详情').click();
   await waitForHash(page, '/pages/data-detail/index', 20000);
-  await expect(page.getByText('参考值')).toBeVisible();
+  await expect(page.locator('.dd-help')).toBeVisible();
 
   // 回归：数据页录入体重/身高弹窗输入不应“点一下就消失”
+  const t = new Date();
+  const todayMD = `${String(t.getMonth() + 1).padStart(2, '0')}.${String(t.getDate()).padStart(2, '0')}`;
   const todayRow = page
-    .locator('.table-row')
-    .filter({ has: page.locator('.table-col-date', { hasText: todayDay }) })
+    .locator('.record-cell')
+    .filter({ has: page.locator('.record-date', { hasText: todayMD }) })
     .first();
   await todayRow.click();
   await expect(page.locator('.edit-modal-content')).toBeVisible();
@@ -200,20 +267,32 @@ test('H5 关键用户旅程', async ({ page }) => {
   await expect(page.locator('.edit-modal-content')).toBeVisible();
   await page.locator('.edit-modal-content uni-button.confirm-btn').click();
 
-  // 数据报告（导出/报告能力的最小链路）
-  // data-detail 是 tabBar 页，browser back 不稳定；显式回到首页更贴近真实“点 tab 返回”
-  await page.goto(`${base}/#/pages/home/index`, { waitUntil: 'domcontentloaded' });
-  await waitForHash(page, '/pages/home/index', 20000);
-  await page.locator('.menu-icon').click();
+  // 回到设置页，继续下钻到数据报告
+  await page.goBack();
+  await waitForHash(page, '/pages/settings/index', 20000);
+
   await page.getByText('数据报告').click();
   await waitForHash(page, '/pages/report/index', 20000);
-  await expect(page.getByText('生成报告')).toBeVisible();
-  await page.getByText('生成报告').click();
+  await expect(page.locator('.range-card').getByText('生成报告')).toBeVisible();
+  await page.locator('.range-card').getByText('生成报告').click();
   await expect(page.getByText('每日明细')).toBeVisible({ timeout: 20000 });
 
   // 退出登录
-  await page.goto(`${base}/#/pages/home/index`, { waitUntil: 'domcontentloaded' });
-  await page.locator('.menu-icon').click();
+  await page.goBack();
+  await waitForHash(page, '/pages/settings/index', 20000);
+  await page.locator('.settings-page .avatar').first().click();
+  await waitForHash(page, '/pages/account/index', 20000);
+
+  // 账号资料：一层完成编辑（昵称/头像）
+  const nick = `E2E_${Date.now()}`;
+  await page.locator('.account-page .cell.tappable').first().click();
+  await expect(page.getByText('账号资料')).toBeVisible({ timeout: 20000 });
+  await page.locator('input.uni-input-input[type="text"]').first().fill(nick);
+  await page.locator('.avatar-item').nth(1).click();
+  await page.locator('uni-button.primary-btn:not([disabled])').click();
+  await expect(page.getByText('账号资料')).toBeHidden({ timeout: 20000 });
+  await expect(page.locator('.account-page .cell.tappable .cell-title').first()).toContainText(nick);
+
   await page.getByText('退出登录').click();
   await waitForHash(page, '/pages/login/index', 20000);
 

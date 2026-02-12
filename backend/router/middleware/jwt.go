@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"naibao-backend/config"
 	"net/http"
 	"strings"
@@ -25,6 +26,10 @@ func JWTAuth(cfg config.JWTConfig) gin.HandlerFunc {
 		}
 		
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			// 防御：拒绝非 HMAC 的签名算法，避免“alg:none/算法降级”类风险
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return []byte(cfg.Secret), nil
 		})
 		
@@ -43,4 +48,3 @@ func JWTAuth(cfg config.JWTConfig) gin.HandlerFunc {
 		c.Next()
 	}
 }
-

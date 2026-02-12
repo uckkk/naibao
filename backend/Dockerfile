@@ -1,7 +1,9 @@
-FROM golang:1.21-alpine AS builder
+# 在部分网络环境中 Docker Hub 镜像源不稳定；使用 AWS Public ECR 的官方镜像镜像，提升可拉取性。
+FROM public.ecr.aws/docker/library/golang:1.21-alpine AS builder
 
 WORKDIR /app
 
+ENV PATH="/usr/local/go/bin:$PATH"
 ENV GOPROXY="https://goproxy.cn,direct"
 ENV GOSUMDB="sum.golang.google.cn"
 
@@ -14,7 +16,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o /naibao-server main.go
 
 
-FROM alpine:3.20
+FROM public.ecr.aws/docker/library/alpine:3.20
 
 WORKDIR /app
 

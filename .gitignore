@@ -3,6 +3,8 @@ backend/.env
 backend/.env.production
 *.env
 *.env.local
+deploy/.env.home
+deploy/.env.prod
 
 # 服务器配置信息
 服务器配置信息.md
@@ -36,7 +38,19 @@ Thumbs.db
 *.tmp
 *.temp
 *.pid
+__pycache__/
+.naibao_runtime/
 
 # Playwright / E2E 产物
 test-results/
 playwright-report/
+
+# 外网预览临时地址（cloudflared）
+frontend/mobile-preview.url
+frontend/dev-h5.backend_port
+
+# 本地工具下载/缓存（避免把 "Not Found" 等占位文件提交上去）
+scripts/bin/
+
+# macOS wrapper apps（本地生成，不提交）
+*.app/

@@ -78,7 +78,7 @@ def wait_health(base: str, timeout_s: int = 60) -> None:
 
 
 def main() -> None:
-    base = os.environ.get("API_BASE", "http://localhost:8080").rstrip("/")
+    base = os.environ.get("API_BASE", "http://localhost:18080").rstrip("/")
     print(f"[smoke] API_BASE={base}")
 
     wait_health(base)
@@ -125,6 +125,37 @@ def main() -> None:
     )
     must(status, status == 200 and upd.get("user", {}).get("avatar_url") == "/static/avatars/avatar_2.png", "更新头像失败", upd)
     print("[smoke] ✅ update avatar")
+
+    # Update nickname/profile (new endpoint)
+    status, upd_profile = http_json(
+        "PUT",
+        f"{base}/api/user/profile",
+        token=token,
+        body={"nickname": "SmokeNick"},
+    )
+    must(status, status == 200 and upd_profile.get("user", {}).get("nickname") == "SmokeNick", "更新昵称失败", upd_profile)
+    print("[smoke] ✅ update nickname")
+
+    # Change password (ensure endpoint works; then re-login)
+    new_password = password + "x"
+    status, chp = http_json(
+        "PUT",
+        f"{base}/api/user/password",
+        token=token,
+        body={"old_password": password, "new_password": new_password},
+    )
+    must(status, status == 200, "修改密码失败", chp)
+    print("[smoke] ✅ change password")
+
+    status, login2 = http_json(
+        "POST",
+        f"{base}/api/public/login",
+        body={"phone": phone, "password": new_password},
+    )
+    must(status, status == 200 and "token" in login2, "修改密码后重新登录失败", login2)
+    token = login2["token"]
+    password = new_password
+    print("[smoke] ✅ re-login after password change")
 
     # Create baby
     status, created = http_json(
@@ -173,6 +204,59 @@ def main() -> None:
     status, cur = http_json("GET", f"{base}/api/babies/{baby_id}/formula", token=token)
     must(status, status == 200 and cur.get("selection", {}).get("brand_id") == brand_id, "获取当前奶粉失败", cur)
     print("[smoke] ✅ current formula")
+
+    # Weaning plan (转奶期) - MVP: alternate feeding sessions, default 7 days.
+    # Only run when at least 2 brands exist.
+    if len(brands.get("brands") or []) >= 2:
+        old_brand_id = brand_id
+        new_brand_id = brands["brands"][1]["id"]
+
+        status, wp = http_json(
+            "POST",
+            f"{base}/api/babies/{baby_id}/weaning-plan",
+            token=token,
+            body={"duration_days": 7, "old_brand_id": old_brand_id, "new_brand_id": new_brand_id, "mode": "alternate"},
+        )
+        must(status, status == 200 and wp.get("plan", {}).get("status") == "active", "创建转奶计划失败", wp)
+        plan_id = wp["plan"]["id"]
+        print(f"[smoke] ✅ create weaning plan plan_id={plan_id}")
+
+        status, cur_wp = http_json("GET", f"{base}/api/babies/{baby_id}/weaning-plan", token=token)
+        must(status, status == 200 and cur_wp.get("plan", {}).get("id") == plan_id, "获取转奶计划失败", cur_wp)
+        print("[smoke] ✅ get weaning plan")
+
+        status, paused = http_json(
+            "PUT",
+            f"{base}/api/babies/{baby_id}/weaning-plan",
+            token=token,
+            body={"action": "pause"},
+        )
+        must(status, status == 200 and paused.get("plan", {}).get("status") == "paused", "暂停转奶计划失败", paused)
+        print("[smoke] ✅ pause weaning plan")
+
+        status, resumed = http_json(
+            "PUT",
+            f"{base}/api/babies/{baby_id}/weaning-plan",
+            token=token,
+            body={"action": "resume"},
+        )
+        must(status, status == 200 and resumed.get("plan", {}).get("status") == "active", "恢复转奶计划失败", resumed)
+        print("[smoke] ✅ resume weaning plan")
+
+        status, ended = http_json(
+            "PUT",
+            f"{base}/api/babies/{baby_id}/weaning-plan",
+            token=token,
+            body={"action": "end"},
+        )
+        must(status, status == 200 and ended.get("plan", {}).get("status") == "ended", "结束转奶计划失败", ended)
+        print("[smoke] ✅ end weaning plan")
+
+        status, after_end = http_json("GET", f"{base}/api/babies/{baby_id}/weaning-plan", token=token)
+        must(status, status == 200 and after_end.get("plan") is None, "结束后仍返回进行中计划", after_end)
+        print("[smoke] ✅ weaning plan ended -> nil")
+    else:
+        print("[smoke] ⏭️  skip weaning plan (need >=2 formula brands)")
 
     # Feeding settings + next time
     status, settings = http_json("GET", f"{base}/api/babies/{baby_id}/settings", token=token)

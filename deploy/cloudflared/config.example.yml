@@ -1,0 +1,19 @@
+# Cloudflare Named Tunnel 配置示例（用于固定域名 api.naibao.me）
+#
+# 使用方式：
+# 1) cloudflared tunnel login
+# 2) cloudflared tunnel create naibao-api
+# 3) cloudflared tunnel route dns naibao-api api.naibao.me
+# 4) 把下面 <TUNNEL_UUID> 替换成你的 UUID
+# 5) 把 credentials-file 替换成你本机实际路径
+#
+# 默认位置：~/.cloudflared/config.yml
+
+tunnel: <TUNNEL_UUID>
+credentials-file: ~/.cloudflared/<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: api.naibao.me
+    # 本机后端端口默认 18080（可按需改为你实际端口）
+    service: http://127.0.0.1:18080
+  - service: http_status:404

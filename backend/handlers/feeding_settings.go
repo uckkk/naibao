@@ -4,6 +4,7 @@ import (
 	"errors"
 	"naibao-backend/models"
 	"naibao-backend/services"
+	"naibao-backend/utils"
 	"net/http"
 	"time"
 
@@ -219,16 +220,19 @@ func (h *FeedingSettingsHandler) GetNextFeedingTime(c *gin.Context) {
 		}
 	}
 
-	// 获取最后一次喂奶记录
+	// 获取最后一次喂奶记录（忽略未来时间的异常记录，避免倒计时失真）
 	var lastFeeding models.Feeding
-	h.DB.Where("baby_id = ?", babyID).
+	now := time.Now().In(utils.CNLocation())
+	futureGrace := 2 * time.Minute
+	_ = h.DB.Where("baby_id = ? AND feeding_time <= ?", babyID, now.Add(futureGrace)).
 		Order("feeding_time DESC").
-		First(&lastFeeding)
+		First(&lastFeeding).Error
+	lastFeeding.FeedingTime = utils.ReinterpretAsCNWallClock(lastFeeding.FeedingTime)
 
 	// 计算下次喂奶时间
 	calculator := services.NewMilkCalculator()
 	nextTime := calculator.CalculateNextFeedingTime(
-		time.Now(),
+		now,
 		lastFeeding.FeedingTime,
 		settings.DayStartHour,
 		settings.DayEndHour,

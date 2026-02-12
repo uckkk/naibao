@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"naibao-backend/models"
+	"naibao-backend/utils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -51,25 +52,26 @@ func (h *ReportHandler) GetBabyReport(c *gin.Context) {
 		return
 	}
 
-	now := time.Now()
-	toDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	loc := utils.CNLocation()
+	now := time.Now().In(loc)
+	toDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 	fromDate := toDate.AddDate(0, 0, -29)
 
 	if s := strings.TrimSpace(c.Query("to")); s != "" {
-		d, err := time.ParseInLocation("2006-01-02", s, time.Local)
+		d, err := time.ParseInLocation("2006-01-02", s, loc)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "to 格式错误，应为 YYYY-MM-DD"})
 			return
 		}
-		toDate = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.Local)
+		toDate = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, loc)
 	}
 	if s := strings.TrimSpace(c.Query("from")); s != "" {
-		d, err := time.ParseInLocation("2006-01-02", s, time.Local)
+		d, err := time.ParseInLocation("2006-01-02", s, loc)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "from 格式错误，应为 YYYY-MM-DD"})
 			return
 		}
-		fromDate = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.Local)
+		fromDate = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, loc)
 	}
 	if fromDate.After(toDate) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "from 不能晚于 to"})
@@ -92,6 +94,9 @@ func (h *ReportHandler) GetBabyReport(c *gin.Context) {
 		Find(&feedings).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询喂养记录失败"})
 		return
+	}
+	for i := range feedings {
+		feedings[i].FeedingTime = utils.ReinterpretAsCNWallClock(feedings[i].FeedingTime)
 	}
 
 	// growth records
@@ -231,4 +236,3 @@ func buildCSV(days []babyReportDay) string {
 	}
 	return b.String()
 }
-

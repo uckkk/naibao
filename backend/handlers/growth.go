@@ -4,6 +4,7 @@ import (
 	"errors"
 	"naibao-backend/models"
 	"naibao-backend/services"
+	"naibao-backend/utils"
 	ws "naibao-backend/websocket"
 	"net/http"
 	"time"
@@ -159,18 +160,19 @@ func (h *GrowthHandler) GetDailyRecords(c *gin.Context) {
 
 	// 解析月份
 	var startDate, endDate time.Time
+	loc := utils.CNLocation()
 	if month != "" {
 		parsedMonth, err := time.Parse("2006-01", month)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "月份格式错误，应为 YYYY-MM"})
 			return
 		}
-		startDate = time.Date(parsedMonth.Year(), parsedMonth.Month(), 1, 0, 0, 0, 0, time.Local)
+		startDate = time.Date(parsedMonth.Year(), parsedMonth.Month(), 1, 0, 0, 0, 0, loc)
 		endDate = startDate.AddDate(0, 1, 0).Add(-time.Second)
 	} else {
 		// 默认当前月
-		now := time.Now()
-		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+		now := time.Now().In(loc)
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		endDate = startDate.AddDate(0, 1, 0).Add(-time.Second)
 	}
 
@@ -184,6 +186,9 @@ func (h *GrowthHandler) GetDailyRecords(c *gin.Context) {
 	var feedings []models.Feeding
 	h.DB.Where("baby_id = ? AND feeding_time >= ? AND feeding_time <= ?", babyID, startDate, endDate).
 		Find(&feedings)
+	for i := range feedings {
+		feedings[i].FeedingTime = utils.ReinterpretAsCNWallClock(feedings[i].FeedingTime)
+	}
 
 	// 按日期组织数据
 	type DailyRecord struct {
