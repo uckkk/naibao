@@ -51,9 +51,13 @@ services:
       JWT_SECRET: "naibao-dev-secret"
       # 管理员白名单（逗号分隔的 user_id）；本地可用：ADMIN_USER_IDS=52 docker compose up -d --build backend
       ADMIN_USER_IDS: "${ADMIN_USER_IDS:-}"
+      # 头像等用户上传资源（本机持久化）
+      UPLOAD_DIR: "/app/uploads"
     ports:
       # macOS 下 OrbStack 可能占用 8080，默认改为 18080（可通过 NB_BACKEND_HOST_PORT 覆盖）。
       - "${NB_BACKEND_HOST_PORT:-18080}:8080"
+    volumes:
+      - naibao_uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -62,3 +66,4 @@ services:
 
 volumes:
   naibao_pg_data:
+  naibao_uploads:

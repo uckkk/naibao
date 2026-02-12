@@ -5,6 +5,8 @@ import (
 	"naibao-backend/handlers"
 	"naibao-backend/router/middleware"
 	"naibao-backend/websocket"
+	"os"
+	"strings"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -16,10 +18,20 @@ func SetupRouter(db *gorm.DB, rdb *redis.Client, hub *websocket.Hub, cfg *config
 	}
 	
 	r := gin.Default()
-	
+	// File upload (avatars etc.). Keep small to reduce memory footprint.
+	r.MaxMultipartMemory = 8 << 20 // 8MB
+
 	// 中间件
 	r.Use(middleware.CORS())
 	r.Use(middleware.ErrorHandler())
+
+	// Static uploads: mount UPLOAD_DIR (default ./uploads) at /uploads
+	uploadDir := strings.TrimSpace(os.Getenv("UPLOAD_DIR"))
+	if uploadDir == "" {
+		uploadDir = "./uploads"
+	}
+	_ = os.MkdirAll(uploadDir, 0o755)
+	r.Static("/uploads", uploadDir)
 	
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -54,6 +66,10 @@ func SetupRouter(db *gorm.DB, rdb *redis.Client, hub *websocket.Hub, cfg *config
 			auth.PUT("/user/profile", userHandler.UpdateProfile)
 			auth.PUT("/user/avatar", userHandler.UpdateAvatar)
 			auth.PUT("/user/password", userHandler.UpdatePassword)
+
+			// 头像上传（自定义照片 -> 返回可用 URL；再通过 profile/avatar 接口保存）
+			avatarUpload := handlers.NewAvatarUploadHandler(db)
+			auth.POST("/user/avatar/upload", avatarUpload.UploadUserAvatar)
 			
 			// 宝宝相关
 			babyHandler := handlers.NewBabyHandler(db)
@@ -62,6 +78,9 @@ func SetupRouter(db *gorm.DB, rdb *redis.Client, hub *websocket.Hub, cfg *config
 			auth.GET("/babies/:id", babyHandler.GetBaby)
 			auth.PUT("/babies/:id", babyHandler.UpdateBaby)
 			auth.DELETE("/babies/:id", babyHandler.DeleteBaby)
+
+			// 宝宝头像上传（管理员）
+			auth.POST("/babies/:id/avatar/upload", avatarUpload.UploadBabyAvatar)
 			
 			// 喂养记录相关
 			feedingHandler := handlers.NewFeedingHandler(db, hub)

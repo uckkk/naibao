@@ -24,6 +24,8 @@ services:
       TZ: Asia/Shanghai
       SERVER_PORT: "8080"
       GIN_MODE: "release"
+      # 头像等用户上传资源（生产持久化）
+      UPLOAD_DIR: "/app/uploads"
       DB_HOST: db
       DB_PORT: "5432"
       DB_USER: ${POSTGRES_USER:-naibao_user}
@@ -35,6 +37,8 @@ services:
       ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
       # 可选：生产环境建议设置为你的前端域名（逗号分隔），例如：https://naibao.example.com
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
+    volumes:
+      - naibao_uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -57,6 +61,6 @@ services:
 
 volumes:
   naibao_pg_data:
+  naibao_uploads:
   caddy_data:
   caddy_config:
-

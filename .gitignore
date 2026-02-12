@@ -40,6 +40,8 @@ Thumbs.db
 *.pid
 __pycache__/
 .naibao_runtime/
+# 用户上传资源（头像等），仅本机/服务器持久化，不提交
+uploads/
 
 # Playwright / E2E 产物
 test-results/

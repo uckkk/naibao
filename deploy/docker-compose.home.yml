@@ -35,6 +35,8 @@ services:
       TZ: Asia/Shanghai
       SERVER_PORT: "8080"
       GIN_MODE: "release"
+      # 头像等用户上传资源（本机持久化）
+      UPLOAD_DIR: "/app/uploads"
       DB_HOST: db
       DB_PORT: "5432"
       DB_USER: ${POSTGRES_USER:-naibao_user}
@@ -51,6 +53,8 @@ services:
     ports:
       # macOS 下 OrbStack 可能占用 8080，默认改为 18080；可通过 deploy/.env.home 覆盖。
       - "${NB_BACKEND_HOST_PORT:-18080}:8080"
+    volumes:
+      - naibao_uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -59,3 +63,4 @@ services:
 
 volumes:
   naibao_pg_data:
+  naibao_uploads:

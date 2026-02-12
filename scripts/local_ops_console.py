@@ -1389,28 +1389,137 @@ def git_porcelain(paths: List[str]) -> Tuple[bool, List[str], str]:
     cmd = ["git", "status", "--porcelain=v1"]
     if paths:
         cmd += ["--", *paths]
-    ok, out = _safe_cmd(cmd, timeout_s=8)
-    if not ok:
-        return False, [], out
-    lines = [ln.rstrip("\n") for ln in (out or "").splitlines() if ln.strip()]
+    # IMPORTANT: do NOT use _safe_cmd here, because it does `.strip()` on the whole output
+    # which would remove the leading space of the first porcelain line and break XY parsing.
+    try:
+        res = _sh(cmd, timeout_s=8)
+    except Exception as e:
+        return False, [], humanize_error(str(e))
+    if res.returncode != 0:
+        raw = (res.stdout or "").strip() or f"exit={res.returncode}"
+        return False, [], humanize_error(raw)
+    out = res.stdout or ""
+    lines = [ln.rstrip("\n") for ln in out.splitlines() if ln.strip()]
     return True, lines, ""
 
 
 def git_change_summary(paths: List[str], max_files: int = 8) -> Dict[str, Any]:
     ok, lines, msg = git_porcelain(paths)
     if not ok:
-        return {"ok": False, "count": 0, "files": [], "msg": msg}
+        return {"ok": False, "count": 0, "files": [], "explain_zh": "", "msg": msg}
 
     files: List[str] = []
+    entries: List[Dict[str, str]] = []
+
+    def _status_from_xy(xy: str) -> str:
+        s = (xy or "  ")[:2]
+        if s == "??":
+            return "A"
+        x = s[0]
+        y = s[1] if len(s) > 1 else " "
+        # Prefer index status when present; otherwise use working tree status.
+        k = x if x != " " else y
+        k = k.upper()
+        if k == "?":
+            return "A"
+        return k or "M"
+
+    def _verb_zh(st: str) -> str:
+        k = (st or "")[:1].upper()
+        if k == "A":
+            return "新增"
+        if k == "M":
+            return "修改"
+        if k == "D":
+            return "删除"
+        if k == "R":
+            return "重命名"
+        if k == "C":
+            return "复制"
+        if k == "T":
+            return "类型变更"
+        if k == "U":
+            return "未合并"
+        return "变更"
+
+    def _display_path(p: str) -> str:
+        s = (p or "").strip()
+        if not s:
+            return "（未知文件）"
+        # Make it less "code-ish" for ops users.
+        rules = [
+            ("frontend/", "前端："),
+            ("backend/", "后端："),
+            ("deploy/", "部署："),
+            ("scripts/", "脚本："),
+            ("docs/", "文档："),
+            ("database/", "数据库："),
+            (".github/", "工作流："),
+        ]
+        for prefix, label in rules:
+            if s.startswith(prefix):
+                rest = s[len(prefix) :]
+                return label + (rest or s)
+        if s == "docker-compose.yml":
+            return "本地：docker-compose.yml"
+        if s == ".gitignore":
+            return "本地：.gitignore"
+        return s
+
     for ln in lines:
         # format: XY <path>   (or: XY <old> -> <new>)
+        xy = ln[:2] if len(ln) >= 2 else ""
+        st = _status_from_xy(xy)
+
         p = ln[3:] if len(ln) >= 4 else ln
         p = p.strip()
         if " -> " in p:
-            p = p.split(" -> ", 1)[1].strip()
+            old, new = p.split(" -> ", 1)
+            old = old.strip()
+            new = new.strip()
+            if new:
+                files.append(new)
+            else:
+                files.append(old)
+
+            if st in ("R", "C"):
+                entries.append({"status": st, "old": old, "new": new})
+            else:
+                entries.append({"status": st, "path": new or old})
+            continue
+
         if p:
             files.append(p)
-    return {"ok": True, "count": len(files), "files": files[: int(max_files)], "msg": ""}
+            entries.append({"status": st, "path": p})
+
+    total = len(entries)
+    explain_lines: List[str] = []
+    if total > 0:
+        explain_lines.append(f"变更说明（共 {total} 项）：")
+        max_show = 12
+        for e in entries[:max_show]:
+            st = str(e.get("status") or "").strip()
+            v = _verb_zh(st)
+            if st[:1].upper() in ("R", "C"):
+                old = _display_path(str(e.get("old") or "").strip())
+                new = _display_path(str(e.get("new") or "").strip())
+                if old and new:
+                    explain_lines.append(f"- {v} {old} -> {new}")
+                else:
+                    explain_lines.append(f"- {v} {old or new or '（未知文件）'}")
+            else:
+                p = _display_path(str(e.get("path") or "").strip())
+                explain_lines.append(f"- {v} {p}")
+        if total > max_show:
+            explain_lines.append(f"- ……（还有 {total - max_show} 项）")
+
+    return {
+        "ok": True,
+        "count": len(files),
+        "files": files[: int(max_files)],
+        "explain_zh": "\n".join(explain_lines).strip(),
+        "msg": "",
+    }
 
 
 def git_file_exists_in_ref(ref: str, path: str) -> bool:
@@ -3715,13 +3824,19 @@ INDEX_HTML = """<!doctype html>
         const gitAhead = Number((git && git.ahead) || 0) || 0;
         const gitBehind = Number((git && git.behind) || 0) || 0;
         const scopes = (git && git.scopes) ? git.scopes : null;
+        const allScope = (scopes && scopes.all) ? scopes.all : null;
         const wfScope = (scopes && scopes.workflow) ? scopes.workflow : null;
         const feScope = (scopes && scopes.frontend) ? scopes.frontend : null;
         const wfOnOrigin = !!(wfScope && wfScope.on_origin);
         const wfCnt = Number((wfScope && wfScope.count) || 0) || 0;
         const feCnt = Number((feScope && feScope.count) || 0) || 0;
+        const allCnt = Number((allScope && allScope.count) || 0) || 0;
         const wfFiles = (wfScope && Array.isArray(wfScope.files)) ? wfScope.files.map(x => String(x||'').trim()).filter(Boolean) : [];
         const feFiles = (feScope && Array.isArray(feScope.files)) ? feScope.files.map(x => String(x||'').trim()).filter(Boolean) : [];
+        const allExplain = (allScope && allScope.explain_zh) ? String(allScope.explain_zh).trim() : '';
+        const wfExplain = (wfScope && wfScope.explain_zh) ? String(wfScope.explain_zh).trim() : '';
+        const feExplain = (feScope && feScope.explain_zh) ? String(feScope.explain_zh).trim() : '';
+        const extraCnt = Math.max(0, allCnt - (wfCnt + feCnt));
 
         const hasRepo = !!ghRepoUrl;
         let pubStatus = 'warn';
@@ -3747,10 +3862,17 @@ INDEX_HTML = """<!doctype html>
           pubStatus = 'warn';
           pubValue = '有更新待发布';
           pubNote = '前端改动 ' + feCnt + ' · 工作流改动 ' + wfCnt + ' · ahead ' + gitAhead;
+        }else if(allCnt > 0){
+          pubStatus = 'warn';
+          pubValue = '有本地改动';
+          pubNote = '检测到 ' + allCnt + ' 项未提交改动（不在 Pages 发布范围）';
         }else{
           pubStatus = 'ok';
           pubValue = '已同步';
           pubNote = '已开启自动部署';
+        }
+        if(extraCnt > 0 && pubNote){
+          pubNote = pubNote + ' · 另外还有 ' + extraCnt + ' 项改动不在发布范围';
         }
 
         const pad2 = (n) => String(n).padStart(2, '0');
@@ -3762,14 +3884,19 @@ INDEX_HTML = """<!doctype html>
         const wfDesc = '部署工作流文件：.github/workflows/pages.yml';
         const feDesc = '会提交：frontend/src + 关键配置文件（不会提交 dist/.env/node_modules）';
 
-        const gitSnapshot = [
+        const gitSnapshotParts = [
           '仓库：' + (ghRepoName || '—'),
           '分支：' + (gitBranch || '—'),
           syncLine,
           '自动部署工作流：' + wfState,
           changeLine,
           '时间：' + ts,
-        ].join('\\n');
+        ];
+        if(allExplain){
+          gitSnapshotParts.push('');
+          gitSnapshotParts.push(allExplain);
+        }
+        const gitSnapshot = gitSnapshotParts.join('\\n');
 
         const stateFields = [
           {label:'仓库', value:(ghRepoName || '—'), mono:true},
@@ -3778,8 +3905,8 @@ INDEX_HTML = """<!doctype html>
           {label:'自动部署', value: wfState, mono:true},
           {label:'待发布', value: ('前端 ' + feCnt + ' · 工作流 ' + wfCnt), mono:true},
         ];
-        if(wfFiles.length){ stateFields.push({label:'工作流改动(摘要)', value: wfFiles.join('\\n'), mono:true}); }
-        if(feFiles.length){ stateFields.push({label:'前端改动(摘要)', value: feFiles.join('\\n'), mono:true}); }
+        if(allCnt){ stateFields.push({label:'本地改动', value:(allCnt + ' 项未提交'), mono:true}); }
+        if(allExplain){ stateFields.push({label:'本地改动说明（简体中文）', value: allExplain}); }
 
         const pubSteps = [];
 
@@ -3823,6 +3950,8 @@ INDEX_HTML = """<!doctype html>
           ? ('未完成（阻塞自动部署）。\\n完成后：你每次“发布前端更新”，GitHub Pages 会自动上线 https://' + ghDomain)
           : (wfCnt > 0 ? ('检测到部署工作流有改动，建议发布一次。\\n' + wfDesc) : ('已完成，无需再操作。\\n' + wfDesc));
         const wfStepActs = [];
+        const wfStepFields = [];
+        if(wfExplain){ wfStepFields.push({label:'变更说明（简体中文）', value: wfExplain}); }
         if(!wfOnOrigin || wfCnt > 0){
           wfStepActs.push({
             type:'api', label:'提交部署工作流', action:'git_publish_workflow', kind:'primary',
@@ -3831,12 +3960,13 @@ INDEX_HTML = """<!doctype html>
         }
         wfStepActs.push({type:'link', label:'打开部署工作流', href:(ghPagesWfUrl || ghActionsUrl || ghRepoUrl || 'https://github.com/'), kind:'primary'});
         wfStepActs.push({type:'log', label:'查看工作流改动', target:'git', service:'workflow'});
-        pubSteps.push({title:wfStepTitle, status:wfStepStatus, desc:wfStepDesc, actions:wfStepActs});
+        pubSteps.push({title:wfStepTitle, status:wfStepStatus, fields:wfStepFields, desc:wfStepDesc, actions:wfStepActs});
 
         // Frontend publish step
         let feStepStatus = 'ok';
         let feStepDesc = '当前无前端改动，无需发布。';
         const feStepActs = [];
+        const feStepFields = [];
         if(!wfOnOrigin){
           feStepStatus = 'warn';
           feStepDesc = '请先完成「部署工作流（一次性）」，否则推送前端不会自动部署到 Pages。';
@@ -3845,22 +3975,25 @@ INDEX_HTML = """<!doctype html>
           feStepDesc = '请先同步远端更新，再发布前端（避免推送失败）。';
         }else if(feCnt > 0 || gitAhead > 0){
           feStepStatus = 'warn';
-          feStepDesc = feDesc + (feFiles.length ? ('\\n\\n检测到改动（摘要）：\\n' + feFiles.join('\\n')) : '');
+          feStepDesc = feDesc;
+          if(feExplain){ feStepFields.push({label:'变更说明（简体中文）', value: feExplain}); }
+          else if(feFiles.length){ feStepFields.push({label:'改动摘要', value: feFiles.join('\\n'), mono:true}); }
           feStepActs.push({
             type:'api', label:'发布前端更新', action:'git_publish_frontend', kind:'primary',
             confirm:'将提交并推送前端更新到 GitHub（触发 Pages 自动部署）。\\n\\n提交说明会自动生成（含完整修改日志）。\\n\\n继续？'
           });
           feStepActs.push({type:'log', label:'查看前端改动', target:'git', service:'frontend'});
         }
-        pubSteps.push({title: (feStepStatus === 'ok' ? '发布前端更新（已完成）' : '发布前端更新'), status:feStepStatus, desc:feStepDesc, actions:feStepActs});
+        pubSteps.push({title: (feStepStatus === 'ok' ? '发布前端更新（已完成）' : '发布前端更新'), status:feStepStatus, fields: feStepFields, desc:feStepDesc, actions:feStepActs});
 
         pubSteps.push({title:'查看部署进度', status:'ok', desc:'推送后 1-3 分钟通常能看到构建/发布结果。', actions:[
           {type:'link', label:'打开 Actions', href:(ghActionsUrl || 'https://github.com/'), kind:'primary'},
           {type:'link', label:'打开 Pages 设置', href: ghPagesUrl},
         ]});
 
-        const pubTodo = {type:'todo', label:'待办清单', title:'发布到 GitHub（自动部署前端）', intro:'目标：把本机改动推送到 GitHub，并触发 Pages 自动部署。按顺序做：', steps: pubSteps};
-        const pubSub = (ghRepoName ? (ghRepoName + ' · ') : '') + ('自动部署：' + wfState + ' · ' + changeLine + ' · ' + syncLine);
+        const pubIntro = '目标：把本机改动推送到 GitHub，并触发 Pages 自动部署。按顺序做：' + (pubNote ? ('\\n\\n当前提示：' + pubNote) : '');
+        const pubTodo = {type:'todo', label:'待办清单', title:'发布到 GitHub（自动部署前端）', intro: pubIntro, steps: pubSteps};
+        const pubSub = (ghRepoName ? (ghRepoName + ' · ') : '') + ('自动部署：' + wfState + ' · ' + changeLine + ' · ' + syncLine) + (pubNote ? ('\\n' + pubNote) : '');
         cards.push({
           id:'gh_publish',
           group:'setup',
@@ -4964,9 +5097,13 @@ INDEX_HTML = """<!doctype html>
         const wecom = sec('微信（可选，国内推荐）');
         const wecomCur = String((masked && masked.ALERT_WECOM_WEBHOOK) || '').trim();
         const wecomPlaceholder = conf.ALERT_WECOM_WEBHOOK ? '粘贴新的 Webhook（留空=不改）' : '未配置';
-        const wecomHint = (conf.ALERT_WECOM_WEBHOOK ? '已设置（脱敏显示），无需重复填写。\\n要更换：直接粘贴新的 Webhook 覆盖即可。\\n\\n' : '') + '企业微信：群聊 -> 添加群机器人 -> 复制 Webhook。';
+        const wecomHint = (conf.ALERT_WECOM_WEBHOOK ? '已设置（脱敏显示），无需重复填写。\\n要更换：直接粘贴新的 Webhook 覆盖即可。\\n\\n' : '') +
+          (wecomCur ? ('当前（脱敏）：' + wecomCur + '\\n\\n') : '') +
+          '企业微信：群聊 -> 添加群机器人 -> 复制 Webhook。';
         const ipWecom = rowInput(wecom, 'Webhook', 'ALERT_WECOM_WEBHOOK', {
-          type:'url',
+          // Use text so masked value (contains "…") won't be blanked by browsers' URL sanitization.
+          type:'text',
+          inputMode:'url',
           value: wecomCur,
           placeholder: wecomPlaceholder,
           hint: wecomHint,
@@ -5002,7 +5139,9 @@ INDEX_HTML = """<!doctype html>
         const bark = sec('iOS 推送（Bark，可选）');
         const barkCur = String((masked && masked.ALERT_BARK_URL) || '').trim();
         const barkPlaceholder = conf.ALERT_BARK_URL ? '粘贴新的 Bark URL（留空=不改）' : '未配置';
-        const barkHint = (conf.ALERT_BARK_URL ? '已设置（脱敏显示），无需重复填写。\\n要更换：直接粘贴新 URL 覆盖即可。\\n\\n' : '') + '只填前缀（形如 https://api.day.app/<Key>）。如果你粘贴了长链接，保存时会自动截断为前缀。';
+        const barkHint = (conf.ALERT_BARK_URL ? '已设置（脱敏显示），无需重复填写。\\n要更换：直接粘贴新 URL 覆盖即可。\\n\\n' : '') +
+          (barkCur ? ('当前（脱敏）：' + barkCur + '\\n\\n') : '') +
+          '只填前缀（形如 https://api.day.app/<Key>）。如果你粘贴了长链接，保存时会自动截断为前缀。';
         const ipBark = rowInput(bark, 'Bark URL', 'ALERT_BARK_URL', {
           // Use text+inputMode=url so masked display (contains "…") won't be blanked by browsers'
           // URL input sanitization/validation behaviors (observed in Safari).
