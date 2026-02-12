@@ -20,6 +20,23 @@
         />
       </view>
     </view>
+
+    <!-- 自定义头像（相册/相机） -->
+    <view class="custom-card" @click="pickCustomAvatar">
+      <view class="custom-left">
+        <view class="custom-icon">
+          <text class="custom-icon-text">+</text>
+        </view>
+        <view class="custom-text">
+          <text class="custom-title">自定义照片</text>
+          <text class="custom-desc">{{ customAvatarUrl ? '已选择（待保存）' : '从相册或相机选择' }}</text>
+        </view>
+      </view>
+      <view class="custom-right">
+        <text v-if="customUploading" class="custom-loading">上传中...</text>
+        <text v-else class="custom-chev">›</text>
+      </view>
+    </view>
     
     <view class="avatars-grid">
       <view 
@@ -51,8 +68,10 @@
 <script>
 import { getAllAvatars } from '@/utils/avatars'
 import { useUserStore } from '@/stores/user'
-import api from '@/utils/api'
+import api, { NB_AUTH_REDIRECT_TOAST_TITLE } from '@/utils/api'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
+
+const CUSTOM_ID = '__custom__'
 
 export default {
   components: { NbNetworkBanner },
@@ -62,6 +81,8 @@ export default {
       selectedAvatarId: null,
       currentAvatarUrl: '',
       loading: false,
+      customAvatarUrl: '',
+      customUploading: false,
       target: 'user', // user | baby
       babyId: null
     }
@@ -102,7 +123,13 @@ export default {
         }
 
         const currentAvatar = this.avatars.find(avatar => avatar.url === this.currentAvatarUrl)
-        if (currentAvatar) this.selectedAvatarId = currentAvatar.id
+        if (currentAvatar) {
+          this.selectedAvatarId = currentAvatar.id
+        } else if (this.currentAvatarUrl) {
+          // 当前头像不在预置列表 -> 视为自定义
+          this.selectedAvatarId = CUSTOM_ID
+          this.customAvatarUrl = this.currentAvatarUrl
+        }
         return
       }
 
@@ -110,12 +137,81 @@ export default {
       if (userStore.user && userStore.user.avatar_url) {
         this.currentAvatarUrl = userStore.user.avatar_url
         const currentAvatar = this.avatars.find(avatar => avatar.url === userStore.user.avatar_url)
-        if (currentAvatar) this.selectedAvatarId = currentAvatar.id
+        if (currentAvatar) {
+          this.selectedAvatarId = currentAvatar.id
+        } else if (this.currentAvatarUrl) {
+          this.selectedAvatarId = CUSTOM_ID
+          this.customAvatarUrl = this.currentAvatarUrl
+        }
       }
     },
     
     selectAvatar(avatar) {
       this.selectedAvatarId = avatar.id
+    },
+
+    async pickCustomAvatar() {
+      if (this.loading || this.customUploading) return
+
+      try {
+        const img = await new Promise((resolve, reject) => {
+          uni.chooseImage({
+            count: 1,
+            sizeType: ['compressed'],
+            sourceType: ['album', 'camera'],
+            success: resolve,
+            fail: reject,
+          })
+        })
+
+        const rawPath = (img && img.tempFilePaths && img.tempFilePaths[0]) ? String(img.tempFilePaths[0]) : ''
+        if (!rawPath) return
+
+        let path = rawPath
+        // best-effort compress (some platforms may not support)
+        try {
+          const compressed = await new Promise((resolve, reject) => {
+            uni.compressImage({
+              src: rawPath,
+              quality: 80,
+              success: resolve,
+              fail: reject,
+            })
+          })
+          const p = compressed?.tempFilePath || compressed?.tempFilePaths?.[0]
+          if (p) path = String(p)
+        } catch {}
+
+        this.customUploading = true
+        const userStore = useUserStore()
+        const babyId = this.target === 'baby' ? (this.babyId || userStore.currentBaby?.id) : null
+        const endpoint = this.target === 'baby'
+          ? `/babies/${babyId}/avatar/upload`
+          : `/user/avatar/upload`
+
+        if (this.target === 'baby' && !babyId) {
+          throw new Error('缺少 babyId')
+        }
+
+        const res = await api.upload(endpoint, path, { name: 'file' })
+        const url = String(res?.url || '').trim()
+        if (!url) {
+          throw new Error('上传失败：未返回URL')
+        }
+
+        this.customAvatarUrl = url
+        this.currentAvatarUrl = url
+        this.selectedAvatarId = CUSTOM_ID
+        uni.showToast({ title: '已选择自定义头像', icon: 'success' })
+      } catch (e) {
+        const msg = e?.message || '选择失败'
+        if (msg === NB_AUTH_REDIRECT_TOAST_TITLE) return
+        if (msg && msg !== 'chooseImage:fail cancel') {
+          uni.showToast({ title: msg, icon: 'none' })
+        }
+      } finally {
+        this.customUploading = false
+      }
     },
     
     async confirmSelect() {
@@ -126,11 +222,14 @@ export default {
         })
         return
       }
+
+      const isCustom = String(this.selectedAvatarId) === CUSTOM_ID
       
-      const selectedAvatar = this.avatars.find(avatar => avatar.id === this.selectedAvatarId)
-      if (!selectedAvatar) {
-        return
-      }
+      const selectedAvatar = isCustom
+        ? { url: String(this.customAvatarUrl || '').trim() }
+        : this.avatars.find(avatar => avatar.id === this.selectedAvatarId)
+
+      if (!selectedAvatar || !String(selectedAvatar.url || '').trim()) return
       
       this.loading = true
       
@@ -230,6 +329,94 @@ export default {
   margin: 16px;
   border-radius: 18px;
   border: 1px solid rgba(27, 26, 23, 0.10);
+}
+
+.custom-card {
+  margin: 0 16px 6px;
+  padding: 12px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.08);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  user-select: none;
+}
+
+.custom-card:active {
+  transform: scale(0.995);
+}
+
+.custom-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.custom-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: rgba(27, 26, 23, 0.06);
+  border: 1px solid rgba(27, 26, 23, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+}
+
+.custom-icon-text {
+  font-size: 18px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.70);
+  line-height: 1;
+}
+
+.custom-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.custom-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(27, 26, 23, 0.92);
+}
+
+.custom-desc {
+  font-size: 12px;
+  color: rgba(27, 26, 23, 0.60);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.custom-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-loading {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(27, 26, 23, 0.60);
+}
+
+.custom-chev {
+  font-size: 18px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.38);
 }
 
 .current-label {

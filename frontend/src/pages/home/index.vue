@@ -28,30 +28,34 @@
               </view>
 
               <view class="home-focus">
-                <view class="hero">
-                  <view style="display:flex;justify-content:center;">
-                    <NbSkeleton :w="72" :h="12" :radius="6" />
-                  </view>
-                  <view style="margin-top:8px;display:flex;justify-content:center;">
-                    <NbSkeleton :w="260" :h="44" :radius="22" />
-                  </view>
-                  <view class="hero-meta">
-                    <NbSkeleton :w="240" :h="14" :radius="7" />
-                  </view>
-                  <view class="hero-badges">
-                    <NbSkeleton :w="140" :h="26" :radius="13" />
+                <view class="focus-card">
+                  <view class="hero">
+                    <view style="display:flex;justify-content:center;">
+                      <NbSkeleton :w="72" :h="12" :radius="6" />
+                    </view>
+                    <view style="margin-top:8px;display:flex;justify-content:center;">
+                      <NbSkeleton :w="260" :h="44" :radius="22" />
+                    </view>
+                    <view class="hero-meta">
+                      <NbSkeleton :w="240" :h="14" :radius="7" />
+                    </view>
+                    <view class="hero-badges">
+                      <NbSkeleton :w="140" :h="26" :radius="13" />
+                    </view>
                   </view>
                 </view>
 
-                <view class="timeline">
-                  <view class="timeline-track">
-                    <NbSkeleton :w="'100%'" :h="26" :radius="13" />
-                  </view>
-                  <view class="timeline-axis">
-                    <NbSkeleton :w="'100%'" :h="12" :radius="6" />
-                  </view>
-                  <view class="timeline-summary">
-                    <NbSkeleton :w="120" :h="12" :radius="6" />
+                <view class="focus-card">
+                  <view class="timeline">
+                    <view class="timeline-track">
+                      <NbSkeleton :w="'100%'" :h="26" :radius="13" />
+                    </view>
+                    <view class="timeline-axis">
+                      <NbSkeleton :w="'100%'" :h="12" :radius="6" />
+                    </view>
+                    <view class="timeline-summary">
+                      <NbSkeleton :w="120" :h="12" :radius="6" />
+                    </view>
                   </view>
                 </view>
               </view>
@@ -119,50 +123,54 @@
 
       <!-- 首页信息减法：主页只保留“下次喂奶 + 时间轴”，解释与明细下钻到抽屉 -->
       <view class="home-focus">
-        <view class="hero">
-          <text class="hero-label">下次喂奶</text>
+        <view class="focus-card">
+          <view class="hero">
+            <text class="hero-label">下次喂奶</text>
 
-          <view class="hero-time-row" aria-hidden="true">
-            <view v-if="nextFeedingDayLabel" class="hero-day-pill">
-              <text class="hero-day-pill-text">{{ nextFeedingDayLabel }}</text>
-            </view>
-            <text class="hero-time">{{ nextFeedingClockText }}</text>
-          </view>
-
-          <view class="hero-countdown-row" :class="{ overdue: nextCountdownMode === 'overdue' }">
-            <text v-if="hasNextFeeding" class="hero-countdown-prefix">
-              {{ nextCountdownMode === 'overdue' ? '已超时' : '还有' }}
-            </text>
-            <text class="hero-countdown-hm">{{ nextCountdownHMText }}</text>
-          </view>
-
-          <text v-if="sinceLastDurationHMText" class="hero-meta-line">上次 {{ lastFeedingClockText }} · {{ sinceLastDurationHMText }}前</text>
-
-          <view class="hero-badges">
-            <view class="health-pill" :class="`lv-${insightLevel}`" @click="openExplainModal">
-              <text class="health-pill-text">{{ homeStatusText }}</text>
+            <view class="hero-time-row" aria-hidden="true">
+              <view v-if="nextFeedingDayLabel" class="hero-day-pill">
+                <text class="hero-day-pill-text">{{ nextFeedingDayLabel }}</text>
+              </view>
+              <text class="hero-time">{{ nextFeedingClockText }}</text>
             </view>
 
-            <view
-              v-if="weaningPillText"
-              class="weaning-pill"
-              :class="weaningPillClass"
-              @click="goWeaningPlan"
-            >
-              <text class="weaning-pill-text">{{ weaningPillText }}</text>
+            <view class="hero-countdown-row" :class="{ overdue: nextCountdownMode === 'overdue' }">
+              <text v-if="hasNextFeeding" class="hero-countdown-prefix">
+                {{ nextCountdownMode === 'overdue' ? '已超时' : '还有' }}
+              </text>
+              <text class="hero-countdown-hm">{{ nextCountdownHMText }}</text>
+            </view>
+
+            <text v-if="sinceLastDurationHMText" class="hero-meta-line">上次 {{ lastFeedingClockText }} · {{ sinceLastDurationHMText }}前</text>
+
+            <view class="hero-badges">
+              <view class="health-pill" :class="`lv-${insightLevel}`" @click="openExplainModal">
+                <text class="health-pill-text">{{ homeStatusText }}</text>
+              </view>
+
+              <view
+                v-if="weaningPillText"
+                class="weaning-pill"
+                :class="weaningPillClass"
+                @click="goWeaningPlan"
+              >
+                <text class="weaning-pill-text">{{ weaningPillText }}</text>
+              </view>
             </view>
           </view>
         </view>
 
-        <FeedingTimeline24
-          :marks="todayTimelineMarks"
-          :selectedKey="selectedTimelineKey"
-          :nowMs="nowTickMs"
-          :nextMs="nextFeedingTimestampMs"
-          :summaryText="timelineSummaryText"
-          @open="openTodayModal"
-          @select="handleHomeTimelineSelect"
-        />
+        <view class="focus-card">
+          <FeedingTimeline24
+            :marks="todayTimelineMarks"
+            :selectedKey="selectedTimelineKey"
+            :nowMs="nowTickMs"
+            :nextMs="nextFeedingTimestampMs"
+            :summaryText="timelineSummaryText"
+            @open="openTodayModal"
+            @select="handleHomeTimelineSelect"
+          />
+        </view>
       </view>
       </template>
       </NbLoadingSwitch>
@@ -2979,10 +2987,13 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 /* 宝宝信息区域 */
 .baby-profile-section {
+  width: 100%;
+  max-width: 520px;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 14px 0 14px;
+  box-sizing: border-box;
 }
 
 .baby-avatar-large {
@@ -3162,6 +3173,16 @@ import { formatZodiacText } from '@/utils/zodiac'
   flex-direction: column;
   align-items: stretch;
   gap: 18px;
+}
+
+.focus-card {
+  border-radius: 22px;
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.08);
+  backdrop-filter: blur(10px);
+  padding: 16px 14px;
+  box-sizing: border-box;
 }
 
 .hero {

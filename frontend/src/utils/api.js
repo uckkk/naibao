@@ -298,6 +298,79 @@ class ApiClient {
     const opts = arguments.length >= 2 ? arguments[1] : null
     return this.request({ url, method: 'DELETE', ...(opts && typeof opts === 'object' ? opts : {}) })
   }
+
+  // 上传文件（用于头像等用户自定义资源）
+  // - url: 例如 '/user/avatar/upload'（会自动拼到 BASE_URL=/api）
+  // - filePath: uni.chooseImage 返回的临时路径
+  // - opts: { name, formData, header, silent }
+  upload(url, filePath) {
+    const opts = arguments.length >= 3 ? arguments[2] : null
+    const o = (opts && typeof opts === 'object') ? opts : {}
+
+    return new Promise((resolve, reject) => {
+      const token = uni.getStorageSync('token')
+      const silent = !!o.silent
+      const fullUrl = this.baseURL + url
+
+      if (!filePath) {
+        reject(new Error('缺少文件路径'))
+        return
+      }
+
+      uni.uploadFile({
+        url: fullUrl,
+        filePath: String(filePath),
+        name: String(o.name || 'file'),
+        formData: (o.formData && typeof o.formData === 'object') ? o.formData : {},
+        header: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(o.header || {}),
+        },
+        timeout: REQUEST_TIMEOUT,
+        success: (res) => {
+          let payload = {}
+          try {
+            payload = typeof res.data === 'string' ? JSON.parse(res.data) : (res.data || {})
+          } catch {
+            payload = { _raw: String(res.data || '') }
+          }
+
+          if (res.statusCode === 200) {
+            resolve(payload)
+            return
+          }
+
+          if (res.statusCode === 401) {
+            handleAuthExpired(token ? 'expired' : 'required')
+            const err = new Error(NB_AUTH_REDIRECT_TOAST_TITLE)
+            err.code = 'AUTH_EXPIRED'
+            reject(err)
+            return
+          }
+
+          const msg = payload?.error || payload?.message || `请求失败 (${res.statusCode})`
+          if (!silent) {
+            const log = res.statusCode >= 500 ? console.error : console.warn
+            log(`[API ${res.statusCode}] ${fullUrl}`, msg)
+          }
+          const err = new Error(msg)
+          err.status = res.statusCode
+          err.url = fullUrl
+          reject(err)
+        },
+        fail: (err) => {
+          let errorMsg = '上传失败，请检查网络连接'
+          const m = String(err?.errMsg || '')
+          if (m.includes('timeout')) {
+            errorMsg = '上传超时，请稍后重试'
+          } else if (m) {
+            errorMsg = m
+          }
+          reject(new Error(errorMsg))
+        },
+      })
+    })
+  }
 }
 
 export default new ApiClient()

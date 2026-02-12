@@ -140,6 +140,17 @@
           </view>
         </view>
 
+        <view class="custom-avatar-row" @click="pickCustomAvatar">
+          <view class="custom-left">
+            <text class="custom-title">自定义照片</text>
+            <text class="custom-desc">{{ String(draftAvatarId) === '__custom__' ? '已设置（点此更换）' : '从相册或相机选择' }}</text>
+          </view>
+          <view class="custom-right">
+            <text v-if="customUploading" class="custom-loading">上传中...</text>
+            <text v-else class="custom-chev">›</text>
+          </view>
+        </view>
+
         <view class="sheet-actions">
           <button class="ghost-btn" :disabled="profileSaving" @click="closeProfileSheet">取消</button>
           <button class="primary-btn" :disabled="profileSaving" @click="submitProfile">
@@ -170,11 +181,13 @@
 </template>
 
 <script>
-import api from '@/utils/api'
+import api, { NB_AUTH_REDIRECT_TOAST_TITLE } from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import { getAllAvatars } from '@/utils/avatars'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
+
+const CUSTOM_ID = '__custom__'
 
 export default {
   components: { NbState, NbNetworkBanner },
@@ -184,6 +197,8 @@ export default {
       profileSaving: false,
       draftNickname: '',
       draftAvatarId: null,
+      draftCustomAvatarUrl: '',
+      customUploading: false,
       avatars: [],
 
       passwordSheetVisible: false,
@@ -219,6 +234,7 @@ export default {
     draftAvatarUrl() {
       const id = this.draftAvatarId
       if (!id) return ''
+      if (String(id) === CUSTOM_ID) return String(this.draftCustomAvatarUrl || '').trim()
       const found = (Array.isArray(this.avatars) ? this.avatars : []).find((x) => x.id === id)
       return found?.url || ''
     },
@@ -256,7 +272,16 @@ export default {
       this.draftNickname = this.user?.nickname || ''
       const cur = this.user?.avatar_url || ''
       const found = this.avatars.find((a) => a.url === cur)
-      this.draftAvatarId = found?.id || (this.avatars[0] ? this.avatars[0].id : null)
+      if (found) {
+        this.draftAvatarId = found.id
+        this.draftCustomAvatarUrl = ''
+      } else if (cur) {
+        this.draftAvatarId = CUSTOM_ID
+        this.draftCustomAvatarUrl = cur
+      } else {
+        this.draftAvatarId = (this.avatars[0] ? this.avatars[0].id : null)
+        this.draftCustomAvatarUrl = ''
+      }
       this.profileSheetVisible = true
     },
 
@@ -268,6 +293,55 @@ export default {
     selectDraftAvatar(a) {
       if (!a || !a.id) return
       this.draftAvatarId = a.id
+    },
+
+    async pickCustomAvatar() {
+      if (this.profileSaving || this.customUploading) return
+
+      try {
+        const img = await new Promise((resolve, reject) => {
+          uni.chooseImage({
+            count: 1,
+            sizeType: ['compressed'],
+            sourceType: ['album', 'camera'],
+            success: resolve,
+            fail: reject,
+          })
+        })
+
+        const rawPath = (img && img.tempFilePaths && img.tempFilePaths[0]) ? String(img.tempFilePaths[0]) : ''
+        if (!rawPath) return
+
+        let path = rawPath
+        try {
+          const compressed = await new Promise((resolve, reject) => {
+            uni.compressImage({
+              src: rawPath,
+              quality: 80,
+              success: resolve,
+              fail: reject,
+            })
+          })
+          const p = compressed?.tempFilePath || compressed?.tempFilePaths?.[0]
+          if (p) path = String(p)
+        } catch {}
+
+        this.customUploading = true
+        const res = await api.upload('/user/avatar/upload', path, { name: 'file' })
+        const url = String(res?.url || '').trim()
+        if (!url) throw new Error('上传失败：未返回URL')
+        this.draftCustomAvatarUrl = url
+        this.draftAvatarId = CUSTOM_ID
+        uni.showToast({ title: '已选择自定义头像', icon: 'success' })
+      } catch (e) {
+        const msg = e?.message || '选择失败'
+        if (msg === NB_AUTH_REDIRECT_TOAST_TITLE) return
+        if (msg && msg !== 'chooseImage:fail cancel') {
+          uni.showToast({ title: msg, icon: 'none' })
+        }
+      } finally {
+        this.customUploading = false
+      }
     },
 
     async submitProfile() {
@@ -439,6 +513,29 @@ export default {
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
+
+.custom-avatar-row{
+  margin-top: 12px;
+  padding: 12px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(60,60,67,.12);
+  background: rgba(255,255,255,.86);
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  user-select:none;
+}
+
+.custom-avatar-row:active{ transform: scale(0.995); }
+
+.custom-left{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.custom-title{ font-size:13px; font-weight:800; color: rgba(27,26,23,.92); }
+.custom-desc{ font-size:12px; color: rgba(27,26,23,.60); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.custom-right{ flex-shrink:0; display:flex; align-items:center; gap:8px; }
+.custom-loading{ font-size:12px; font-weight:800; color: rgba(27,26,23,.60); }
+.custom-chev{ font-size:18px; font-weight:900; color: rgba(27,26,23,.38); }
 
 .avatar-item {
   position: relative;
