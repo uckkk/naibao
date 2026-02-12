@@ -11,10 +11,10 @@
     <NbNetworkBanner />
     
     <view class="current-avatar-section">
-      <text class="current-label">当前头像</text>
+      <text class="current-label">头像预览</text>
       <view class="current-avatar-wrapper">
         <image 
-          :src="currentAvatarUrl || '/static/default-avatar.png'" 
+          :src="previewAvatarUrl || '/static/default-avatar.png'" 
           class="current-avatar"
           mode="aspectFill"
         />
@@ -29,7 +29,7 @@
         </view>
         <view class="custom-text">
           <text class="custom-title">自定义照片</text>
-          <text class="custom-desc">{{ customAvatarUrl ? '已选择（待保存）' : '从相册或相机选择' }}</text>
+          <text class="custom-desc">{{ customCardDesc }}</text>
         </view>
       </view>
       <view class="custom-right">
@@ -86,6 +86,30 @@ export default {
       target: 'user', // user | baby
       babyId: null
     }
+  },
+
+  computed: {
+    isCustomSelected() {
+      return String(this.selectedAvatarId || '') === CUSTOM_ID
+    },
+
+    previewAvatarUrl() {
+      if (this.isCustomSelected) {
+        return String(this.customAvatarUrl || '').trim() || String(this.currentAvatarUrl || '').trim()
+      }
+      const found = (Array.isArray(this.avatars) ? this.avatars : []).find((x) => x && x.id === this.selectedAvatarId)
+      return String(found?.url || this.currentAvatarUrl || '').trim()
+    },
+
+    customCardDesc() {
+      // Make the state obvious: already set vs selected (pending save).
+      if (!this.isCustomSelected) return '从相册或相机选择'
+      const saved = String(this.currentAvatarUrl || '').trim()
+      const selected = String(this.customAvatarUrl || '').trim()
+      if (selected && saved && selected === saved) return '已设置（点此更换）'
+      if (selected) return '已选择（待保存）'
+      return '从相册或相机选择'
+    },
   },
   
   onLoad(options) {
@@ -200,7 +224,6 @@ export default {
         }
 
         this.customAvatarUrl = url
-        this.currentAvatarUrl = url
         this.selectedAvatarId = CUSTOM_ID
         uni.showToast({ title: '已选择自定义头像', icon: 'success' })
       } catch (e) {

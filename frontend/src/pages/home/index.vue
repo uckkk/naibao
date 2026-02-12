@@ -125,7 +125,7 @@
       <view class="home-focus">
         <view class="focus-card">
           <view class="hero">
-            <text class="hero-label">下次喂奶</text>
+            <text class="hero-label">下次喂奶时间</text>
 
             <view class="hero-time-row" aria-hidden="true">
               <view v-if="nextFeedingDayLabel" class="hero-day-pill">
@@ -135,13 +135,14 @@
             </view>
 
             <view class="hero-countdown-row" :class="{ overdue: nextCountdownMode === 'overdue' }">
-              <text v-if="hasNextFeeding" class="hero-countdown-prefix">
-                {{ nextCountdownMode === 'overdue' ? '已超时' : '还有' }}
-              </text>
+              <text v-if="hasNextFeeding && nextCountdownMode === 'overdue'" class="hero-countdown-prefix">已超时</text>
               <text class="hero-countdown-hm">{{ nextCountdownHMText }}</text>
+              <text v-if="hasNextFeeding && nextCountdownMode !== 'overdue'" class="hero-countdown-suffix">后给宝宝喂奶</text>
             </view>
 
-            <text v-if="sinceLastDurationHMText" class="hero-meta-line">上次 {{ lastFeedingClockText }} · {{ sinceLastDurationHMText }}前</text>
+            <text v-if="sinceLastDurationHMText" class="hero-meta-line">
+              距上次喂奶已过去 {{ sinceLastDurationHMText }}<text v-if="lastFeedingClockText">（上次 {{ lastFeedingClockText }}）</text>
+            </text>
 
             <view class="hero-badges">
               <view class="health-pill" :class="`lv-${insightLevel}`" @click="openExplainModal">
@@ -2989,6 +2990,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .baby-profile-section {
   width: 100%;
   max-width: 520px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3056,7 +3058,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .setup-nudge {
   width: 100%;
   max-width: 520px;
-  margin: 0 auto 6px;
+  margin: 0 auto 14px;
   padding: 10px 12px;
   border-radius: 18px;
   border: 1px solid rgba(27, 26, 23, 0.10);
@@ -3169,10 +3171,11 @@ import { formatZodiacText } from '@/utils/zodiac'
 .home-focus {
   width: 100%;
   max-width: 520px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 18px;
+  gap: 14px;
 }
 
 .focus-card {
@@ -3225,7 +3228,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 }
 
 .hero-time {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 900;
   color: rgba(27, 26, 23, 0.86);
   letter-spacing: -0.2px;
@@ -3258,8 +3261,16 @@ import { formatZodiacText } from '@/utils/zodiac'
   white-space: nowrap;
 }
 
+.hero-countdown-suffix {
+  font-size: 14px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.70);
+  white-space: nowrap;
+}
+
 .hero-countdown-row.overdue .hero-countdown-prefix,
-.hero-countdown-row.overdue .hero-countdown-hm {
+.hero-countdown-row.overdue .hero-countdown-hm,
+.hero-countdown-row.overdue .hero-countdown-suffix {
   color: var(--nb-danger);
 }
 

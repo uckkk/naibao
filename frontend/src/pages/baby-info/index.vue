@@ -470,7 +470,7 @@ export default {
     },
     
     selectAvatar() {
-      // 为了跨平台一致性与低维护成本：使用内置头像库（不做文件上传）
+      // 头像选择：预置头像 + 自定义照片（上传后返回 URL；再保存到 baby.avatar_url）
       if (!this.baby.id) {
         uni.showToast({
           title: '请先保存宝宝信息后再更换头像',

@@ -92,6 +92,19 @@ export default {
 </script>
 
 <style scoped>
+.nb-load-switch {
+  /* 作为“页面级容器”使用时，常常会放在 flex column + align-items:center 的父容器里；
+     若不显式设宽度，会出现随内容变化而“变窄”的布局抖动。 */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.slot-skel,
+.slot-content {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .slot-content {
   opacity: 0;
   transition: opacity var(--nb-fade-ms) ease;
@@ -101,4 +114,3 @@ export default {
   opacity: 1;
 }
 </style>
-
