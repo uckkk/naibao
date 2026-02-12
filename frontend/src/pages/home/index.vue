@@ -2937,6 +2937,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 <style scoped>
 .home-container {
   min-height: 100vh;
+  width: 100%;
   background-color: transparent;
   display: flex;
   flex-direction: column;
@@ -2948,6 +2949,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .home-main {
   flex: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
   /* 关键：不要用 center，让子内容随内容“缩起来”。这里必须 stretch，才能避免
