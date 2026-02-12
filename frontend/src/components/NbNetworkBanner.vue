@@ -72,7 +72,9 @@ export default {
   position: sticky;
   top: 0;
   z-index: 1800;
-  margin: 0 0 10px;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto 10px;
   padding: 10px 12px;
   border-radius: 14px;
   border: 1px solid rgba(27, 26, 23, 0.10);

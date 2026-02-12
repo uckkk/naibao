@@ -3,12 +3,16 @@
     <NbNetworkBanner />
     <!-- 头像和昵称 -->
     <view class="avatar-section">
-      <image 
-        :src="baby.avatar_url || '/static/default-avatar.png'" 
+      <NbAvatarUpload
         class="baby-avatar"
-        @click="selectAvatar"
-        mode="aspectFill"
+        :src="baby.avatar_url || '/static/default-avatar.png'"
+        :size="120"
+        :radius="60"
+        :uploadUrl="babyAvatarUploadUrl"
+        :disabled="saving"
+        @uploaded="handleBabyAvatarUploaded"
       />
+      <text class="avatar-hint">轻点头像更换</text>
       <text class="nickname-label">昵称</text>
       <text class="nickname-value">{{ baby.nickname || '宝宝' }}</text>
     </view>
@@ -170,11 +174,12 @@ import { useUserStore } from '@/stores/user'
 import { formatZodiacText } from '@/utils/zodiac'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
 import NbConfirmSheet from '@/components/NbConfirmSheet.vue'
+import NbAvatarUpload from '@/components/NbAvatarUpload.vue'
 
 const DRAFT_KEY_NEW = 'nb_baby_draft_new_v1'
 
 export default {
-  components: { NbNetworkBanner, NbConfirmSheet },
+  components: { NbNetworkBanner, NbConfirmSheet, NbAvatarUpload },
   data() {
     return {
       baby: {
@@ -203,7 +208,13 @@ export default {
   computed: {
     zodiacText() {
       return formatZodiacText(this.baby?.birth_date) || ''
-    }
+    },
+    babyAvatarUploadUrl() {
+      // 统一交互：编辑页点击头像直接上传。新建未落库时先上传到用户目录，创建时再把 URL 存到宝宝资料里。
+      const id = this.baby?.id
+      if (id) return `/babies/${id}/avatar/upload`
+      return '/user/avatar/upload'
+    },
   },
   
   onLoad(options) {
@@ -469,19 +480,28 @@ export default {
       }
     },
     
-    selectAvatar() {
-      // 头像选择：预置头像 + 自定义照片（上传后返回 URL；再保存到 baby.avatar_url）
-      if (!this.baby.id) {
-        uni.showToast({
-          title: '请先保存宝宝信息后再更换头像',
-          icon: 'none'
+    async handleBabyAvatarUploaded(url) {
+      const nextUrl = String(url || '').trim()
+      if (!nextUrl) return
+
+      // 与其它字段编辑一致：先更新本地展示，再按需保存。
+      this.baby.avatar_url = nextUrl
+      this.markDirty()
+      this.persistDraft()
+
+      // 已有宝宝：头像应立即持久化，避免用户返回后丢失（更像 iOS 的“立即生效”）。
+      if (this.baby?.id) {
+        await this.saveBabyInfo({
+          navigateAfter: false,
+          showToast: true,
+          toastText: '头像已更新',
+          showErrorToast: true,
         })
         return
       }
 
-      uni.navigateTo({
-        url: `/pages/avatar-select/index?target=baby&babyId=${this.baby.id}`
-      })
+      // 新建宝宝：先留在草稿里，等关键字段齐全后创建时一并保存
+      uni.showToast({ title: '已选择头像', icon: 'success' })
     },
 
     editField(field) {
@@ -763,11 +783,14 @@ export default {
 }
 
 .baby-avatar {
-  width: 120px;
-  height: 120px;
-  border-radius: 60px;
-  background: #FFD700;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
+}
+
+.avatar-hint {
+  font-size: 12px;
+  color: rgba(27, 26, 23, 0.52);
+  font-weight: 800;
+  margin-bottom: 12px;
 }
 
 .nickname-label {

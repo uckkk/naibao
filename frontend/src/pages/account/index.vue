@@ -11,13 +11,34 @@
 
     <template v-else>
       <view class="group">
-        <view class="cells">
-          <view class="cell tappable" @click="openProfileSheet">
-            <image class="avatar" :src="userAvatar" mode="aspectFill" />
-            <text class="cell-title">{{ userName }}</text>
-            <view class="cell-right">
-              <text class="chev">›</text>
+        <!-- 信息减法：资料编辑不再藏到下一层 Sheet；在本页一屏完成（更像 iOS 的“账号资料”）。 -->
+        <view class="profile-editor">
+          <NbAvatarUpload
+            :src="draftAvatarUrl || userAvatar"
+            uploadUrl="/user/avatar/upload"
+            :size="72"
+            :radius="24"
+            :disabled="profileSaving"
+            @uploaded="handleAvatarUploaded"
+          />
+
+          <view class="profile-main">
+            <text class="profile-title">账号资料</text>
+            <view class="profile-row">
+              <text class="profile-label">昵称</text>
+              <input
+                class="profile-input"
+                type="text"
+                v-model="draftNickname"
+                placeholder="输入昵称（最多20字）"
+                placeholder-class="input-ph"
+                :disabled="profileSaving"
+                @focus="editingNickname = true"
+                @blur="handleNicknameBlur"
+                @confirm="submitNickname"
+              />
             </view>
+            <text class="profile-hint">{{ profileHintText }}</text>
           </view>
         </view>
       </view>
@@ -99,67 +120,6 @@
       </view>
     </view>
 
-    <!-- 编辑资料（昵称/头像一层完成，避免入口过深） -->
-    <view
-      v-if="profileSheetVisible"
-      class="sheet-mask"
-      @click.self="closeProfileSheet"
-      @touchmove.prevent
-      @wheel.prevent
-    >
-      <view class="sheet" @click.stop>
-        <text class="sheet-title">账号资料</text>
-
-        <view class="profile-hero">
-          <image class="profile-avatar" :src="draftAvatarUrl || userAvatar" mode="aspectFill" />
-          <text class="profile-name">{{ draftNickname || userName }}</text>
-        </view>
-
-        <view class="fields">
-          <input
-            class="input"
-            type="text"
-            v-model="draftNickname"
-            placeholder="昵称（最多20字）"
-            placeholder-class="input-ph"
-          />
-        </view>
-
-        <view class="avatar-grid">
-          <view
-            v-for="a in avatars"
-            :key="a.id"
-            class="avatar-item"
-            :class="{ selected: draftAvatarId === a.id }"
-            @click="selectDraftAvatar(a)"
-          >
-            <image class="avatar-img" :src="a.url" mode="aspectFill" />
-            <view v-if="draftAvatarId === a.id" class="avatar-check">
-              <text class="avatar-check-text">✓</text>
-            </view>
-          </view>
-        </view>
-
-        <view class="custom-avatar-row" @click="pickCustomAvatar">
-          <view class="custom-left">
-            <text class="custom-title">自定义照片</text>
-            <text class="custom-desc">{{ String(draftAvatarId) === '__custom__' ? '已设置（点此更换）' : '从相册或相机选择' }}</text>
-          </view>
-          <view class="custom-right">
-            <text v-if="customUploading" class="custom-loading">上传中...</text>
-            <text v-else class="custom-chev">›</text>
-          </view>
-        </view>
-
-        <view class="sheet-actions">
-          <button class="ghost-btn" :disabled="profileSaving" @click="closeProfileSheet">取消</button>
-          <button class="primary-btn" :disabled="profileSaving" @click="submitProfile">
-            {{ profileSaving ? '保存中...' : '保存' }}
-          </button>
-        </view>
-      </view>
-    </view>
-
     <!-- 清除缓存 -->
     <view
       v-if="clearSheetVisible"
@@ -181,25 +141,20 @@
 </template>
 
 <script>
-import api, { NB_AUTH_REDIRECT_TOAST_TITLE } from '@/utils/api'
+import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
-import { getAllAvatars } from '@/utils/avatars'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-
-const CUSTOM_ID = '__custom__'
+import NbAvatarUpload from '@/components/NbAvatarUpload.vue'
 
 export default {
-  components: { NbState, NbNetworkBanner },
+  components: { NbState, NbNetworkBanner, NbAvatarUpload },
   data() {
     return {
-      profileSheetVisible: false,
       profileSaving: false,
       draftNickname: '',
-      draftAvatarId: null,
-      draftCustomAvatarUrl: '',
-      customUploading: false,
-      avatars: [],
+      draftAvatarUrl: '',
+      editingNickname: false,
 
       passwordSheetVisible: false,
       clearSheetVisible: false,
@@ -231,17 +186,30 @@ export default {
       if (raw.length < 7) return raw || ''
       return raw.slice(0, 3) + '****' + raw.slice(-4)
     },
-    draftAvatarUrl() {
-      const id = this.draftAvatarId
-      if (!id) return ''
-      if (String(id) === CUSTOM_ID) return String(this.draftCustomAvatarUrl || '').trim()
-      const found = (Array.isArray(this.avatars) ? this.avatars : []).find((x) => x.id === id)
-      return found?.url || ''
+    profileHintText() {
+      if (this.profileSaving) return '保存中...'
+      const u = this.user || {}
+      const nick = String(this.draftNickname || '').trim()
+      const curNick = String(u.nickname || '').trim()
+      const dirtyNick = this.editingNickname ? true : (nick && nick !== curNick)
+      return dirtyNick ? '编辑完成后自动保存' : '已保存'
     },
   },
 
   onShow() {
     this.refreshProfile()
+  },
+
+  watch: {
+    user: {
+      immediate: true,
+      handler() {
+        // 外部刷新/保存后：同步草稿（避免用户看到旧值）
+        if (this.profileSaving || this.editingNickname) return
+        this.draftNickname = String(this.user?.nickname || '').trim()
+        this.draftAvatarUrl = ''
+      },
+    },
   },
 
   methods: {
@@ -266,100 +234,54 @@ export default {
       }
     },
 
-    openProfileSheet() {
+    async handleAvatarUploaded(url) {
+      const nextUrl = String(url || '').trim()
+      if (!nextUrl) return
       if (this.profileSaving) return
-      this.avatars = getAllAvatars()
-      this.draftNickname = this.user?.nickname || ''
-      const cur = this.user?.avatar_url || ''
-      const found = this.avatars.find((a) => a.url === cur)
-      if (found) {
-        this.draftAvatarId = found.id
-        this.draftCustomAvatarUrl = ''
-      } else if (cur) {
-        this.draftAvatarId = CUSTOM_ID
-        this.draftCustomAvatarUrl = cur
-      } else {
-        this.draftAvatarId = (this.avatars[0] ? this.avatars[0].id : null)
-        this.draftCustomAvatarUrl = ''
-      }
-      this.profileSheetVisible = true
-    },
-
-    closeProfileSheet() {
-      if (this.profileSaving) return
-      this.profileSheetVisible = false
-    },
-
-    selectDraftAvatar(a) {
-      if (!a || !a.id) return
-      this.draftAvatarId = a.id
-    },
-
-    async pickCustomAvatar() {
-      if (this.profileSaving || this.customUploading) return
-
+      const userStore = useUserStore()
+      this.profileSaving = true
+      // 先乐观更新：让用户立刻看到新头像（更像 iOS 的“立即生效”）
+      this.draftAvatarUrl = nextUrl
       try {
-        const img = await new Promise((resolve, reject) => {
-          uni.chooseImage({
-            count: 1,
-            sizeType: ['compressed'],
-            sourceType: ['album', 'camera'],
-            success: resolve,
-            fail: reject,
-          })
-        })
-
-        const rawPath = (img && img.tempFilePaths && img.tempFilePaths[0]) ? String(img.tempFilePaths[0]) : ''
-        if (!rawPath) return
-
-        let path = rawPath
-        try {
-          const compressed = await new Promise((resolve, reject) => {
-            uni.compressImage({
-              src: rawPath,
-              quality: 80,
-              success: resolve,
-              fail: reject,
-            })
-          })
-          const p = compressed?.tempFilePath || compressed?.tempFilePaths?.[0]
-          if (p) path = String(p)
-        } catch {}
-
-        this.customUploading = true
-        const res = await api.upload('/user/avatar/upload', path, { name: 'file' })
-        const url = String(res?.url || '').trim()
-        if (!url) throw new Error('上传失败：未返回URL')
-        this.draftCustomAvatarUrl = url
-        this.draftAvatarId = CUSTOM_ID
-        uni.showToast({ title: '已选择自定义头像', icon: 'success' })
+        await userStore.updateProfile({ avatar_url: nextUrl })
+        this.draftAvatarUrl = ''
+        uni.showToast({ title: '头像已更新', icon: 'success' })
       } catch (e) {
-        const msg = e?.message || '选择失败'
-        if (msg === NB_AUTH_REDIRECT_TOAST_TITLE) return
-        if (msg && msg !== 'chooseImage:fail cancel') {
-          uni.showToast({ title: msg, icon: 'none' })
-        }
+        this.draftAvatarUrl = ''
+        uni.showToast({ title: e?.message || '更新失败', icon: 'none' })
       } finally {
-        this.customUploading = false
+        this.profileSaving = false
       }
     },
 
-    async submitProfile() {
+    handleNicknameBlur() {
+      this.editingNickname = false
+      this.submitNickname()
+    },
+
+    async submitNickname() {
       if (this.profileSaving) return
       const userStore = useUserStore()
       const nick = String(this.draftNickname || '').trim()
-      if (!nick) return uni.showToast({ title: '请输入昵称', icon: 'none' })
-      if (Array.from(nick).length > 20) return uni.showToast({ title: '昵称最多20字', icon: 'none' })
-
-      const avatarUrl = this.draftAvatarUrl || this.userAvatar
+      const cur = String(this.user?.nickname || '').trim()
+      if (!nick) {
+        this.draftNickname = cur
+        return
+      }
+      if (Array.from(nick).length > 20) {
+        uni.showToast({ title: '昵称最多20字', icon: 'none' })
+        this.draftNickname = cur
+        return
+      }
+      if (nick === cur) return
 
       this.profileSaving = true
       try {
-        await userStore.updateProfile({ nickname: nick, avatar_url: avatarUrl })
-        uni.showToast({ title: '已更新', icon: 'success' })
-        setTimeout(() => this.closeProfileSheet(), 450)
+        await userStore.updateProfile({ nickname: nick })
+        uni.showToast({ title: '昵称已更新', icon: 'success' })
       } catch (e) {
         uni.showToast({ title: e?.message || '更新失败', icon: 'none' })
+        this.draftNickname = cur
       } finally {
         this.profileSaving = false
       }
@@ -437,6 +359,65 @@ export default {
   box-sizing: border-box;
 }
 
+.profile-editor {
+  padding: 14px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.profile-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-title {
+  font-size: 14px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.82);
+}
+
+.profile-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(27, 26, 23, 0.62);
+  white-space: nowrap;
+}
+
+.profile-input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(27, 26, 23, 0.12);
+  background: rgba(27, 26, 23, 0.04);
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 800;
+  box-sizing: border-box;
+}
+
+.profile-hint {
+  font-size: 12px;
+  color: rgba(27, 26, 23, 0.52);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .section-h {
   display: block;
   margin: 12px 6px 8px;
@@ -475,110 +456,6 @@ export default {
 
 .tappable:active {
   background: rgba(27, 26, 23, 0.03);
-}
-
-.avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  background: rgba(27, 26, 23, 0.04);
-}
-
-.profile-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.profile-avatar {
-  width: 68px;
-  height: 68px;
-  border-radius: 22px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  background: rgba(27, 26, 23, 0.04);
-}
-
-.profile-name {
-  font-size: 14px;
-  font-weight: 900;
-  color: rgba(27, 26, 23, 0.82);
-}
-
-.avatar-grid {
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.custom-avatar-row{
-  margin-top: 12px;
-  padding: 12px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(60,60,67,.12);
-  background: rgba(255,255,255,.86);
-  display:flex;
-  flex-direction:row;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-  user-select:none;
-}
-
-.custom-avatar-row:active{ transform: scale(0.995); }
-
-.custom-left{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.custom-title{ font-size:13px; font-weight:800; color: rgba(27,26,23,.92); }
-.custom-desc{ font-size:12px; color: rgba(27,26,23,.60); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.custom-right{ flex-shrink:0; display:flex; align-items:center; gap:8px; }
-.custom-loading{ font-size:12px; font-weight:800; color: rgba(27,26,23,.60); }
-.custom-chev{ font-size:18px; font-weight:900; color: rgba(27,26,23,.38); }
-
-.avatar-item {
-  position: relative;
-  width: 100%;
-  padding-top: 100%;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  background: rgba(27, 26, 23, 0.04);
-}
-
-.avatar-item.selected {
-  border-color: rgba(255, 138, 61, 0.65);
-  box-shadow: 0 0 0 4px rgba(255, 138, 61, 0.16);
-}
-
-.avatar-img {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.avatar-check {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  width: 18px;
-  height: 18px;
-  border-radius: 9px;
-  background: rgba(255, 138, 61, 0.92);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-}
-
-.avatar-check-text {
-  font-size: 12px;
-  color: #fff;
-  font-weight: 900;
-  line-height: 1;
 }
 
 .cell-title {

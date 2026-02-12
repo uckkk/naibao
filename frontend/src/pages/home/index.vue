@@ -2945,7 +2945,9 @@ import { formatZodiacText } from '@/utils/zodiac'
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* 关键：不要用 center，让子内容随内容“缩起来”。这里必须 stretch，才能避免
+     时间轴说明卡片显隐导致整列卡片宽度抖动（更符合 iOS 的稳定布局）。 */
+  align-items: stretch;
   justify-content: flex-start;
   /* 顶部不要再“空一大块”：主内容从安全区后直接开始（更像 iOS 信息布局） */
   padding: calc(var(--nb-safe-top)) var(--nb-page-x) 48px;
@@ -3172,6 +3174,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -3179,6 +3182,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 }
 
 .focus-card {
+  width: 100%;
   border-radius: 22px;
   border: 1px solid rgba(27, 26, 23, 0.10);
   background: rgba(255, 255, 255, 0.86);
