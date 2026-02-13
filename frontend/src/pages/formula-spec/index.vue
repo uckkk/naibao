@@ -651,7 +651,7 @@ export default {
 
 .sheet {
   width: 100%;
-  max-width: 520px;
+  max-width: var(--nb-content-max, 520px);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(27, 26, 23, 0.10);

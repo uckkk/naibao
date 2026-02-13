@@ -99,7 +99,17 @@
       <view class="group">
         <view class="cells">
           <view class="cell tappable" @click="goAccount">
-            <image class="avatar" :src="userAvatar" mode="aspectFill" />
+            <!-- 入口减深：在设置页即可一键更换头像（仍可点整行进入账号页改昵称/密码等）。 -->
+            <view @click.stop>
+              <NbAvatarUpload
+                :src="userAvatar"
+                uploadUrl="/user/avatar/upload"
+                :size="40"
+                :radius="14"
+                :disabled="pageLoading"
+                @uploaded="handleUserAvatarUploaded"
+              />
+            </view>
             <text class="cell-title">{{ userName }}</text>
             <view class="cell-right">
               <text class="cell-value">{{ maskedPhone }}</text>
@@ -221,9 +231,10 @@ import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
 import NbLoadable from '@/components/NbLoadable.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 import NbSkeletonAvatar from '@/components/NbSkeletonAvatar.vue'
+import NbAvatarUpload from '@/components/NbAvatarUpload.vue'
 
 export default {
-  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton, NbSkeletonAvatar },
+  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton, NbSkeletonAvatar, NbAvatarUpload },
   data() {
     return {
       pageLoading: false,
@@ -274,6 +285,18 @@ export default {
   methods: {
     onNbRetry() {
       this.init()
+    },
+
+    async handleUserAvatarUploaded(nextUrl) {
+      const url = String(nextUrl || '').trim()
+      if (!url) return
+      try {
+        const userStore = useUserStore()
+        await userStore.updateProfile({ avatar_url: url })
+        uni.showToast({ title: '头像已更新', icon: 'none' })
+      } catch (e) {
+        uni.showToast({ title: e?.message || '更新失败', icon: 'none' })
+      }
     },
 
     async init() {

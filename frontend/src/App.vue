@@ -87,7 +87,9 @@ page {
 
   --nb-card-bg: rgba(255, 255, 255, 0.92);
   --nb-card-bg-2: rgba(255, 255, 255, 0.82);
+  --nb-card-bg-soft: rgba(255, 255, 255, 0.86);
   --nb-shadow-card: 0 18px 50px rgba(var(--nb-ink-rgb), 0.08);
+  --nb-shadow-card-strong: 0 18px 50px rgba(var(--nb-ink-rgb), 0.12);
   --nb-shadow-card-weak: 0 14px 34px rgba(var(--nb-ink-rgb), 0.05);
   --nb-shadow-float: 0 10px 24px rgba(var(--nb-ink-rgb), 0.10);
   --nb-ring: 0 0 0 4px rgba(247, 201, 72, 0.22);
@@ -101,6 +103,8 @@ page {
   --nb-safe-top: env(safe-area-inset-top, 0px);
   --nb-safe-bottom: env(safe-area-inset-bottom, 0px);
   --nb-page-x: 16px;
+  /* 内容最大宽度（iPad/桌面 H5 时避免卡片过窄） */
+  --nb-content-max: 680px;
 }
 
 /* 轻量全局样式：表单/按钮/卡片统一，降低页面重复与端差异 */

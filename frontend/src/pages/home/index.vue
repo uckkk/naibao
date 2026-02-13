@@ -2955,9 +2955,9 @@ import { formatZodiacText } from '@/utils/zodiac'
   justify-content: center;
   align-items: center;
   border-radius: 20px; /* 正圆按钮 */
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.12);
+  background: var(--nb-card-bg-2);
+  border: 1px solid var(--nb-border);
+  box-shadow: var(--nb-shadow-card-strong);
   backdrop-filter: blur(10px);
 }
 
@@ -2965,14 +2965,14 @@ import { formatZodiacText } from '@/utils/zodiac'
   display: block;
   width: 18px;
   height: 2px;
-  background-color: rgba(27, 26, 23, 0.82);
+  background-color: rgba(var(--nb-ink-rgb), 0.82);
   border-radius: 2px;
 }
 
 /* 宝宝信息区域 */
 .baby-profile-section {
   width: 100%;
-  max-width: 520px;
+  max-width: var(--nb-content-max, 520px);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -3016,7 +3016,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .baby-name-large {
   font-size: 30px;
   font-weight: 800;
-  color: #333;
+  color: var(--nb-text);
   text-align: center;
   line-height: 1.2;
 }
@@ -3024,7 +3024,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .baby-switch-chev {
   font-size: 22px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.32);
+  color: var(--nb-faint);
   line-height: 1;
   transform: translateY(-1px);
 }
@@ -3040,25 +3040,25 @@ import { formatZodiacText } from '@/utils/zodiac'
 .stat-text {
   font-size: 15px;
   font-weight: 700;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   white-space: nowrap;
 }
 
 .stat-dot {
   font-size: 14px;
-  color: rgba(27, 26, 23, 0.40);
+  color: rgba(var(--nb-ink-rgb), 0.40);
 }
 
 /* 首页轻量引导（Setup Nudge）：一条即可，避免面板化 */
 .setup-nudge {
   width: 100%;
-  max-width: 520px;
+  max-width: var(--nb-content-max, 520px);
   margin: 0 auto 14px;
   padding: 10px 12px;
   border-radius: 18px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.08);
+  border: 1px solid var(--nb-border);
+  background: var(--nb-card-bg-soft);
+  box-shadow: var(--nb-shadow-card);
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: row;
@@ -3089,8 +3089,8 @@ import { formatZodiacText } from '@/utils/zodiac'
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(27, 26, 23, 0.06);
-  border: 1px solid rgba(27, 26, 23, 0.08);
+  background: var(--nb-fill);
+  border: 1px solid var(--nb-line);
   flex: 0 0 30px;
 }
 
@@ -3107,7 +3107,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .setup-nudge-icon-text {
   font-size: 16px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.78);
+  color: rgba(var(--nb-ink-rgb), 0.78);
 }
 
 .setup-nudge-text {
@@ -3128,7 +3128,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .setup-nudge-desc {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3144,7 +3144,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .setup-nudge-cta {
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.92);
+  color: rgba(var(--nb-ink-rgb), 0.92);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -3152,20 +3152,20 @@ import { formatZodiacText } from '@/utils/zodiac'
 .setup-nudge-chev {
   font-size: 16px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.38);
+  color: rgba(var(--nb-ink-rgb), 0.38);
 }
 
 .setup-nudge-close {
   font-size: 18px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.42);
+  color: rgba(var(--nb-ink-rgb), 0.42);
   padding-left: 6px;
 }
 
 /* 首页信息减法：弱说明、强主线（下次喂奶 + 24h 时间轴） */
 .home-focus {
   width: 100%;
-  max-width: 520px;
+  max-width: var(--nb-content-max, 520px);
   margin: 0 auto;
   align-self: stretch;
   display: flex;
@@ -3177,9 +3177,9 @@ import { formatZodiacText } from '@/utils/zodiac'
 .focus-card {
   width: 100%;
   border-radius: 22px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.08);
+  border: 1px solid var(--nb-border);
+  background: var(--nb-card-bg-soft);
+  box-shadow: var(--nb-shadow-card);
   backdrop-filter: blur(10px);
   padding: 16px 14px;
   box-sizing: border-box;
@@ -3193,7 +3193,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   display: block;
   font-size: 12px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.55);
+  color: var(--nb-muted-2);
   letter-spacing: 0.3px;
 }
 
@@ -3210,8 +3210,8 @@ import { formatZodiacText } from '@/utils/zodiac'
   height: 22px;
   padding: 0 8px;
   border-radius: 999px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  background: rgba(27, 26, 23, 0.04);
+  border: 1px solid var(--nb-border);
+  background: rgba(var(--nb-ink-rgb), 0.04);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3220,14 +3220,14 @@ import { formatZodiacText } from '@/utils/zodiac'
 .hero-day-pill-text {
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.66);
+  color: rgba(var(--nb-ink-rgb), 0.66);
   line-height: 1;
 }
 
 .hero-time {
   font-size: 22px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.86);
+  color: rgba(var(--nb-ink-rgb), 0.86);
   letter-spacing: -0.2px;
   font-variant-numeric: tabular-nums;
 }
@@ -3245,7 +3245,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .hero-countdown-prefix {
   font-size: 14px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.70);
+  color: rgba(var(--nb-ink-rgb), 0.70);
 }
 
 .hero-countdown-hm {
@@ -3261,7 +3261,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .hero-countdown-suffix {
   font-size: 14px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.70);
+  color: rgba(var(--nb-ink-rgb), 0.70);
   white-space: nowrap;
 }
 
@@ -3276,7 +3276,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   display: block;
   font-size: 13px;
   font-weight: 700;
-  color: rgba(27, 26, 23, 0.70);
+  color: rgba(var(--nb-ink-rgb), 0.70);
 }
 
 .hero-badges {
@@ -3292,20 +3292,20 @@ import { formatZodiacText } from '@/utils/zodiac'
 .health-pill {
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(27, 26, 23, 0.12);
-  background: rgba(27, 26, 23, 0.06);
+  border: 1px solid var(--nb-border-2);
+  background: var(--nb-fill);
 }
 
 .health-pill-text {
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
 }
 
 .weaning-pill {
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(27, 26, 23, 0.12);
+  border: 1px solid var(--nb-border-2);
   background: rgba(247, 201, 72, 0.16);
 }
 
@@ -3315,8 +3315,8 @@ import { formatZodiacText } from '@/utils/zodiac'
 }
 
 .weaning-pill.paused {
-  background: rgba(27, 26, 23, 0.06);
-  border-color: rgba(27, 26, 23, 0.12);
+  background: var(--nb-fill);
+  border-color: var(--nb-border-2);
 }
 
 .weaning-pill.done {
@@ -3327,15 +3327,15 @@ import { formatZodiacText } from '@/utils/zodiac'
 .weaning-pill-text {
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
 }
 
 .weaning-pill.paused .weaning-pill-text {
-  color: rgba(27, 26, 23, 0.66);
+  color: rgba(var(--nb-ink-rgb), 0.66);
 }
 
 .weaning-pill.done .weaning-pill-text {
-  color: rgba(27, 26, 23, 0.78);
+  color: rgba(var(--nb-ink-rgb), 0.78);
 }
 
 .lv-excellent {
@@ -3379,7 +3379,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .today-sub-dot {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.38);
+  color: rgba(var(--nb-ink-rgb), 0.38);
 }
 
 .today-sub-muted {
@@ -3391,13 +3391,13 @@ import { formatZodiacText } from '@/utils/zodiac'
 .suggest-card {
   margin-top: 12px;
   border-radius: 18px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
+  border: 1px solid var(--nb-border);
   background:
     radial-gradient(720px 260px at 18% 0%, rgba(247, 201, 72, 0.20), rgba(247, 201, 72, 0) 60%),
     radial-gradient(520px 260px at 100% 30%, rgba(255, 138, 61, 0.14), rgba(255, 138, 61, 0) 62%),
-    rgba(255, 255, 255, 0.92);
+    var(--nb-card-bg);
   padding: 12px 12px 10px;
-  box-shadow: 0 18px 44px rgba(27, 26, 23, 0.10);
+  box-shadow: var(--nb-shadow-card-strong);
   text-align: center;
 }
 
@@ -3405,7 +3405,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   display: block;
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.58);
+  color: rgba(var(--nb-ink-rgb), 0.58);
 }
 
 .suggest-v {
@@ -3423,11 +3423,11 @@ import { formatZodiacText } from '@/utils/zodiac'
   display: block;
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.55);
+  color: var(--nb-muted-2);
 }
 
 .suggest-link {
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -3439,7 +3439,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .today-progress {
   margin-top: 12px;
   border-radius: 18px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
+  border: 1px solid var(--nb-border);
   background: rgba(255, 255, 255, 0.72);
   padding: 12px 12px 10px;
 }
@@ -3456,14 +3456,14 @@ import { formatZodiacText } from '@/utils/zodiac'
 .today-progress-right {
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.70);
+  color: rgba(var(--nb-ink-rgb), 0.70);
 }
 
 .today-progress-bar {
   width: 100%;
   height: 8px;
   border-radius: 6px;
-  background: rgba(27, 26, 23, 0.10);
+  background: var(--nb-border);
   overflow: hidden;
   position: relative;
 }
@@ -3479,7 +3479,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   top: -2px;
   width: 2px;
   height: 12px;
-  background: rgba(27, 26, 23, 0.55);
+  background: var(--nb-muted-2);
   border-radius: 2px;
   transform: translateX(-1px);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55);
@@ -3496,7 +3496,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   margin-top: 8px;
   display: block;
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
 }
 
 .today-progress-delta-row {
@@ -3508,11 +3508,11 @@ import { formatZodiacText } from '@/utils/zodiac'
   display: inline-block;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  background: rgba(27, 26, 23, 0.05);
+  border: 1px solid var(--nb-border);
+  background: rgba(var(--nb-ink-rgb), 0.05);
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
 }
 
 .d-low {
@@ -3531,7 +3531,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   margin-top: 2px;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
+  border: 1px solid var(--nb-border);
   background: rgba(255, 255, 255, 0.70);
   display: flex;
   flex-direction: column;
@@ -3541,24 +3541,24 @@ import { formatZodiacText } from '@/utils/zodiac'
 .today-advice-title {
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.78);
+  color: rgba(var(--nb-ink-rgb), 0.78);
 }
 
 .today-advice-item {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.70);
+  color: rgba(var(--nb-ink-rgb), 0.70);
   line-height: 1.55;
 }
 
 .today-hint-disclaimer {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.50);
+  color: rgba(var(--nb-ink-rgb), 0.50);
 }
 
 .today-meta {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid rgba(27, 26, 23, 0.10);
+  border-top: 1px solid var(--nb-border);
   display: flex;
   flex-direction: row;
   align-items: baseline;
@@ -3568,12 +3568,12 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .today-meta-text {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
 }
 
 .today-meta-link {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -3611,7 +3611,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(27, 26, 23, 0.14);
+  border: 1px solid rgba(var(--nb-ink-rgb), 0.14);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(10px);
 }
@@ -3628,7 +3628,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .feed-badge-text {
   font-size: 12px;
   font-weight: 1000;
-  color: rgba(27, 26, 23, 0.82);
+  color: rgba(var(--nb-ink-rgb), 0.82);
 }
 
 .feed-button-large:active {
@@ -3696,12 +3696,12 @@ import { formatZodiacText } from '@/utils/zodiac'
   padding: 10px 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.70);
-  border: 1px solid rgba(27, 26, 23, 0.10);
+  border: 1px solid var(--nb-border);
 }
 
 .today-modal-meta-text {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   line-height: 1.5;
 }
 
@@ -3719,19 +3719,19 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .today-modal-empty-text {
   font-size: 14px;
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
 }
 
 .today-modal-empty-sub {
   font-size: 13px;
-  color: rgba(27, 26, 23, 0.58);
+  color: rgba(var(--nb-ink-rgb), 0.58);
 }
 
 .today-modal-list {
   height: 44vh;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(27, 26, 23, 0.10);
+  border: 1px solid var(--nb-border);
   overflow: hidden;
 }
 
@@ -3795,7 +3795,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border-bottom: 1px solid rgba(27, 26, 23, 0.08);
+  border-bottom: 1px solid var(--nb-line);
   transform: translateX(0);
   transition: transform 180ms ease;
   will-change: transform;
@@ -3821,7 +3821,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .today-item-time {
   width: 46px;
   font-size: 13px;
-  color: rgba(27, 26, 23, 0.66);
+  color: rgba(var(--nb-ink-rgb), 0.66);
   font-family: 'Courier New', monospace;
   white-space: nowrap;
 }
@@ -3837,8 +3837,8 @@ import { formatZodiacText } from '@/utils/zodiac'
 .today-item-tag {
   padding: 2px 6px;
   border-radius: 999px;
-  border: 1px solid rgba(27, 26, 23, 0.12);
-  background: rgba(27, 26, 23, 0.06);
+  border: 1px solid var(--nb-border-2);
+  background: var(--nb-fill);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3846,7 +3846,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 }
 
 .today-item-tag.old {
-  background: rgba(27, 26, 23, 0.06);
+  background: var(--nb-fill);
 }
 
 .today-item-tag.new {
@@ -3857,7 +3857,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 .today-item-tag-text {
   font-size: 11px;
   font-weight: 1000;
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
 }
 
 .today-item-user {
@@ -3865,7 +3865,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   max-width: 40%;
   text-align: right;
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3942,8 +3942,8 @@ import { formatZodiacText } from '@/utils/zodiac'
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 28px rgba(27, 26, 23, 0.12);
+  background: var(--nb-card-bg);
+  box-shadow: 0 10px 28px rgba(var(--nb-ink-rgb), 0.12);
   z-index: 998;
 }
 
@@ -3976,8 +3976,8 @@ import { formatZodiacText } from '@/utils/zodiac'
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(27, 26, 23, 0.06);
-  border: 1px solid rgba(27, 26, 23, 0.10);
+  background: var(--nb-fill);
+  border: 1px solid var(--nb-border);
   flex: none;
 }
 
@@ -3993,7 +3993,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .undo-icon-text {
   font-size: 16px;
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
   font-weight: 900;
   line-height: 1;
 }
@@ -4024,7 +4024,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .undo-sub {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.58);
+  color: rgba(var(--nb-ink-rgb), 0.58);
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
@@ -4043,9 +4043,9 @@ import { formatZodiacText } from '@/utils/zodiac'
   height: 34px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid rgba(27, 26, 23, 0.12);
-  background: rgba(27, 26, 23, 0.04);
-  color: rgba(27, 26, 23, 0.86);
+  border: 1px solid var(--nb-border-2);
+  background: rgba(var(--nb-ink-rgb), 0.04);
+  color: rgba(var(--nb-ink-rgb), 0.86);
   font-size: 13px;
   font-weight: 900;
   display: flex;
@@ -4056,7 +4056,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .undo-btn.primary {
   border: none;
-  background: rgba(27, 26, 23, 0.92);
+  background: rgba(var(--nb-ink-rgb), 0.92);
   color: rgba(255, 255, 255, 0.92);
 }
 
@@ -4075,7 +4075,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   justify-content: space-between;
   align-items: center;
   padding: 10px 0;
-  border-bottom: 1px solid rgba(27, 26, 23, 0.08);
+  border-bottom: 1px solid var(--nb-line);
 }
 
 .detail-row.disabled {
@@ -4084,7 +4084,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .detail-label {
   font-size: 14px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
 }
 
 .detail-picker-wrap {
@@ -4109,7 +4109,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .detail-chev {
   font-size: 18px;
-  color: rgba(27, 26, 23, 0.38);
+  color: rgba(var(--nb-ink-rgb), 0.38);
   font-weight: 900;
   line-height: 1;
 }
@@ -4124,7 +4124,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   align-items: center;
   gap: 10px;
   margin-top: 10px;
-  border: 2px solid rgba(27, 26, 23, 0.10);
+  border: 2px solid var(--nb-border);
   border-radius: 14px;
   padding: 0 14px;
   min-height: 48px;
@@ -4148,7 +4148,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 }
 
 .detail-unit {
-  color: rgba(27, 26, 23, 0.45);
+  color: var(--nb-muted-3);
   font-size: 14px;
   font-weight: 700;
 }
@@ -4157,7 +4157,7 @@ import { formatZodiacText } from '@/utils/zodiac'
   display: block;
   margin-top: 8px;
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.52);
+  color: rgba(var(--nb-ink-rgb), 0.52);
 }
 
 .danger-row {
@@ -4175,9 +4175,9 @@ import { formatZodiacText } from '@/utils/zodiac'
 }
 
 .danger-btn[disabled] {
-  background: rgba(27, 26, 23, 0.08);
-  border-color: rgba(27, 26, 23, 0.10);
-  color: rgba(27, 26, 23, 0.45);
+  background: var(--nb-line);
+  border-color: var(--nb-border);
+  color: var(--nb-muted-3);
 }
 
 /* 响应式设计 */

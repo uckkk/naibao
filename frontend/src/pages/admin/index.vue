@@ -876,7 +876,7 @@ export default {
 
 .modal {
   width: 100%;
-  max-width: 520px;
+  max-width: var(--nb-content-max, 520px);
   background: rgba(255, 255, 255, 0.96);
   border-radius: var(--nb-radius-lg);
   border: 1px solid var(--nb-border);

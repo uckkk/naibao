@@ -73,7 +73,7 @@ export default {
   top: 0;
   z-index: 1800;
   width: 100%;
-  max-width: 520px;
+  max-width: var(--nb-content-max, 520px);
   margin: 0 auto 10px;
   padding: 10px 12px;
   border-radius: 14px;
