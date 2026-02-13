@@ -1,7 +1,18 @@
 <template>
   <view class="spec-container">
     <NbNetworkBanner />
-    <NbLoadingSwitch :loading="loading">
+    <NbLoadable
+      :loading="loading"
+      :errorText="error"
+      errorTitle="冲泡要求"
+      :empty="!selection"
+      emptyType="info"
+      emptyTitle="还没有绑定奶粉"
+      emptyDesc="绑定后可显示勺数、水温与冲泡步骤"
+      emptyActionText="去绑定"
+      @retry="init"
+      @emptyAction="goBindFormula"
+    >
       <template #skeleton>
         <view class="card">
           <view class="head">
@@ -30,26 +41,7 @@
           </view>
         </view>
       </template>
-
-      <NbState
-        v-if="error"
-        type="error"
-        title="冲泡要求"
-        :desc="error"
-        actionText="重试"
-        @action="init"
-      />
-
-      <NbState
-        v-else-if="!selection"
-        type="info"
-        title="还没有绑定奶粉"
-        desc="绑定后可显示勺数、水温与冲泡步骤"
-        actionText="去绑定"
-        @action="goBindFormula"
-      />
-
-      <view class="card" v-else>
+      <view class="card">
         <view class="head">
           <view class="brand">
             <text class="brand-name">{{ brandNameText }}</text>
@@ -82,7 +74,7 @@
           <text v-if="customNoteText" class="muted">{{ customNoteText }}</text>
         </view>
       </view>
-    </NbLoadingSwitch>
+    </NbLoadable>
 
     <view class="footer">
       <button class="ghost-btn" @click="goBack">返回</button>
@@ -195,7 +187,7 @@ import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbLoadable from '@/components/NbLoadable.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 import NbSkeletonText from '@/components/NbSkeletonText.vue'
 import NbConfirmSheet from '@/components/NbConfirmSheet.vue'
@@ -208,7 +200,7 @@ import {
 } from '@/utils/custom_formula_spec'
 
 export default {
-  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton, NbSkeletonText, NbConfirmSheet },
+  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton, NbSkeletonText, NbConfirmSheet },
   data() {
     return {
       babyId: null,
@@ -335,6 +327,12 @@ export default {
   onLoad(options) {
     const userStore = useUserStore()
     this.babyId = options?.babyId || userStore.currentBaby?.id || null
+  },
+
+  onShow() {
+    const userStore = useUserStore()
+    // 多宝宝：默认全局跟随 currentBaby
+    if (userStore.currentBaby?.id) this.babyId = userStore.currentBaby.id
     this.init()
   },
 

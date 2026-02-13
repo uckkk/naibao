@@ -69,6 +69,25 @@
         </view>
       </view>
 
+      <text class="section-h">隐私与数据</text>
+      <view class="group">
+        <view class="cells">
+          <view class="cell tappable" @click="openExportSheet">
+            <text class="cell-title">导出我的数据</text>
+            <view class="cell-right">
+              <text class="chev">›</text>
+            </view>
+          </view>
+
+          <view class="cell tappable danger" @click="openDeleteSheet">
+            <text class="cell-title danger-text">注销账号</text>
+            <view class="cell-right">
+              <text class="chev danger-text">›</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
       <view class="group">
         <view class="cells">
           <view class="cell tappable danger" @click="logout">
@@ -137,6 +156,65 @@
         </view>
       </view>
     </view>
+
+    <!-- 导出数据 -->
+    <view
+      v-if="exportSheetVisible"
+      class="sheet-mask"
+      @click.self="closeExportSheet"
+      @touchmove.prevent
+      @wheel.prevent
+    >
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">导出我的数据</text>
+        <text class="sheet-desc">
+          将生成一份 JSON（包含账号、宝宝、喂奶记录等），你可以复制保存到安全的地方。
+        </text>
+        <text v-if="exportSummaryText" class="sheet-desc" style="margin-top:8px;">{{ exportSummaryText }}</text>
+        <text v-if="exportErrorText" class="sheet-desc" style="margin-top:8px;color:var(--nb-danger);">
+          {{ exportErrorText }}
+        </text>
+
+        <view class="sheet-actions">
+          <button class="ghost-btn" :disabled="exportLoading" @click="closeExportSheet">关闭</button>
+          <button class="primary-btn" :disabled="exportLoading" @click="generateExportAndCopy">
+            {{ exportLoading ? '生成中...' : (exportReady ? '再次复制' : '生成并复制') }}
+          </button>
+        </view>
+      </view>
+    </view>
+
+    <!-- 注销账号 -->
+    <view
+      v-if="deleteSheetVisible"
+      class="sheet-mask"
+      @click.self="closeDeleteSheet"
+      @touchmove.prevent
+      @wheel.prevent
+    >
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">注销账号</text>
+        <text class="sheet-desc">
+          这会删除你在服务器上的账号与数据（宝宝、喂奶记录等），不可恢复。为防误触，请输入 DELETE 或「注销」后再确认。
+        </text>
+        <view class="fields">
+          <input
+            class="input"
+            type="text"
+            v-model="deleteConfirmText"
+            placeholder="输入 DELETE 或 注销"
+            placeholder-class="input-ph"
+            :disabled="deleteLoading"
+          />
+        </view>
+        <view class="sheet-actions">
+          <button class="ghost-btn" :disabled="deleteLoading" @click="closeDeleteSheet">取消</button>
+          <button class="danger-btn" :disabled="deleteLoading || !deleteConfirmOk" @click="submitDelete">
+            {{ deleteLoading ? '注销中...' : '注销' }}
+          </button>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -158,6 +236,14 @@ export default {
 
       passwordSheetVisible: false,
       clearSheetVisible: false,
+      exportSheetVisible: false,
+      exportLoading: false,
+      exportReady: false,
+      exportPayload: null,
+      exportErrorText: '',
+      deleteSheetVisible: false,
+      deleteConfirmText: '',
+      deleteLoading: false,
 
       oldPassword: '',
       newPassword: '',
@@ -194,6 +280,32 @@ export default {
       const dirtyNick = this.editingNickname ? true : (nick && nick !== curNick)
       return dirtyNick ? '编辑完成后自动保存' : '已保存'
     },
+
+    exportSummaryText() {
+      if (!this.exportPayload || typeof this.exportPayload !== 'object') return ''
+      const babies = Array.isArray(this.exportPayload?.babies) ? this.exportPayload.babies.length : 0
+      const feedings = Array.isArray(this.exportPayload?.feedings) ? this.exportPayload.feedings.length : 0
+      const growth = Array.isArray(this.exportPayload?.growth) ? this.exportPayload.growth.length : 0
+      const parts = []
+      if (babies) parts.push(`${babies} 个宝宝`)
+      if (feedings) parts.push(`${feedings} 条喂奶记录`)
+      if (growth) parts.push(`${growth} 条生长记录`)
+      return parts.length ? `已包含：${parts.join('，')}` : ''
+    },
+
+    deleteConfirmOk() {
+      const s = String(this.deleteConfirmText || '').trim()
+      return s === 'DELETE' || s === '注销'
+    },
+  },
+
+  onLoad(options) {
+    const focus = String(options?.focus || '').trim().toLowerCase()
+    if (focus === 'export') {
+      setTimeout(() => this.openExportSheet({ autoGenerate: true }), 0)
+    } else if (focus === 'delete') {
+      setTimeout(() => this.openDeleteSheet(), 0)
+    }
   },
 
   onShow() {
@@ -328,6 +440,70 @@ export default {
 
     closeClearSheet() {
       this.clearSheetVisible = false
+    },
+
+    openExportSheet(opts = {}) {
+      if (this.exportLoading) return
+      this.exportSheetVisible = true
+      this.exportErrorText = ''
+      const auto = !!opts.autoGenerate
+      if (auto) this.generateExportAndCopy()
+    },
+
+    closeExportSheet() {
+      if (this.exportLoading) return
+      this.exportSheetVisible = false
+    },
+
+    async generateExportAndCopy() {
+      if (this.exportLoading) return
+      this.exportLoading = true
+      this.exportErrorText = ''
+      try {
+        const payload = await api.get('/user/export', {}, { silent: true })
+        this.exportPayload = payload || null
+        this.exportReady = true
+
+        // 直接复制，避免“生成了但不知道在哪里”的困惑
+        const text = JSON.stringify(payload || {}, null, 2)
+        await new Promise((resolve, reject) => {
+          uni.setClipboardData({
+            data: text,
+            success: resolve,
+            fail: reject,
+          })
+        })
+        uni.showToast({ title: '已复制', icon: 'none' })
+      } catch (e) {
+        this.exportErrorText = e?.message || '生成失败'
+      } finally {
+        this.exportLoading = false
+      }
+    },
+
+    openDeleteSheet() {
+      this.deleteSheetVisible = true
+      this.deleteConfirmText = ''
+    },
+
+    closeDeleteSheet() {
+      if (this.deleteLoading) return
+      this.deleteSheetVisible = false
+    },
+
+    async submitDelete() {
+      if (this.deleteLoading) return
+      if (!this.deleteConfirmOk) return
+      this.deleteLoading = true
+      try {
+        await api.post('/user/delete', { confirm: String(this.deleteConfirmText || '').trim() })
+        uni.showToast({ title: '账号已注销', icon: 'none' })
+        setTimeout(() => this.clearAndLogout(), 300)
+      } catch (e) {
+        uni.showToast({ title: e?.message || '操作失败', icon: 'none' })
+      } finally {
+        this.deleteLoading = false
+      }
     },
 
     clearAndLogout() {

@@ -19,7 +19,7 @@
       @action="goToBabyInfo"
     />
 
-    <NbLoadingSwitch v-else :loading="pageLoading">
+    <NbLoadable v-else :loading="pageLoading" :errorText="errorText" @retry="init">
       <template #skeleton>
         <view class="group">
           <view class="group-head">
@@ -63,16 +63,6 @@
         </view>
       </template>
 
-      <NbState
-        v-if="errorText"
-        type="error"
-        title="加载失败"
-        :desc="errorText"
-        actionText="重试"
-        @action="init"
-      />
-
-      <template v-else>
       <view class="group">
         <view class="group-head">
           <text class="group-title">投喂默认量</text>
@@ -122,8 +112,7 @@
           {{ saving ? '保存中...' : (dirty ? '保存' : '已保存') }}
         </button>
       </view>
-    </template>
-    </NbLoadingSwitch>
+    </NbLoadable>
   </view>
 </template>
 
@@ -132,7 +121,7 @@ import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbLoadable from '@/components/NbLoadable.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 import NbSkeletonText from '@/components/NbSkeletonText.vue'
 
@@ -143,7 +132,7 @@ function clampInt(n, min, max) {
 }
 
 export default {
-  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton, NbSkeletonText },
+  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton, NbSkeletonText },
   data() {
     return {
       babyId: null,
@@ -189,10 +178,9 @@ export default {
   },
 
   onShow() {
-    if (!this.babyId) {
-      const userStore = useUserStore()
-      if (userStore.currentBaby?.id) this.babyId = userStore.currentBaby.id
-    }
+    // 多宝宝：默认全局跟随 currentBaby
+    const userStore = useUserStore()
+    if (userStore.currentBaby?.id) this.babyId = userStore.currentBaby.id
     this.init()
   },
 

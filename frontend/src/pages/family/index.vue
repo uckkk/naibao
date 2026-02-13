@@ -163,6 +163,22 @@ export default {
     }
   },
 
+  onShow() {
+    const userStore = useUserStore()
+    // 多宝宝：默认全局跟随 currentBaby
+    const storeId = userStore.currentBaby?.id || null
+    if (storeId && String(storeId) !== String(this.babyId || '')) {
+      this.babyId = storeId
+      this.inviteCode = ''
+      this.members = []
+      this.membersError = ''
+      this.myRole = ''
+      this.generatedCode = ''
+      this.expiresAt = ''
+      this.loadMembers()
+    }
+  },
+
   methods: {
     onNbRetry() {
       // 弱网恢复后：刷新家庭成员（如果已选宝宝）

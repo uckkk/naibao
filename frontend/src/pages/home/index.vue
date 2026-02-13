@@ -12,7 +12,17 @@
 	    <view class="home-main">
 	      <NbNetworkBanner />
 
-        <NbLoadingSwitch :loading="pageLoading">
+        <NbLoadable
+          :loading="pageLoading"
+          :errorText="errorText"
+          :empty="!currentBaby.id"
+          emptyType="info"
+          emptyTitle="还没有宝宝档案"
+          emptyDesc="先创建宝宝，才能开始记录与计算下次喂奶"
+          emptyActionText="去建档"
+          @retry="onNbRetry"
+          @emptyAction="goToBabyInfo"
+        >
           <template #skeleton>
             <view class="home-skel">
               <view class="baby-profile-section">
@@ -61,26 +71,6 @@
               </view>
             </view>
           </template>
-
-          <NbState
-            v-if="errorText"
-            type="error"
-            title="加载失败"
-            :desc="errorText"
-            actionText="重试"
-            @action="onNbRetry"
-          />
-
-          <NbState
-            v-else-if="!currentBaby.id"
-            type="info"
-            title="还没有宝宝档案"
-            desc="先创建宝宝，才能开始记录与计算下次喂奶"
-            actionText="去建档"
-            @action="goToBabyInfo"
-          />
-
-          <template v-else>
 	      <!-- 宝宝信息区域 -->
 	      <view class="baby-profile-section">
 	        <view class="baby-avatar-large" @click="goToBabyInfo">
@@ -174,8 +164,7 @@
           />
         </view>
       </view>
-      </template>
-      </NbLoadingSwitch>
+      </NbLoadable>
     </view>
     
     <!-- 投喂按钮 -->
@@ -460,13 +449,13 @@ import { formatZodiacText } from '@/utils/zodiac'
 	import NbConfirmSheet from '@/components/NbConfirmSheet.vue'
 	import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
   import NbState from '@/components/NbState.vue'
-  import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+  import NbLoadable from '@/components/NbLoadable.vue'
   import NbSkeleton from '@/components/NbSkeleton.vue'
   import NbSkeletonAvatar from '@/components/NbSkeletonAvatar.vue'
   import FeedingTimeline24 from '@/components/FeedingTimeline24.vue'
 
 	export default {
-	  components: { NbConfirmSheet, NbNetworkBanner, NbState, NbLoadingSwitch, NbSkeleton, NbSkeletonAvatar, FeedingTimeline24 },
+	  components: { NbConfirmSheet, NbNetworkBanner, NbState, NbLoadable, NbSkeleton, NbSkeletonAvatar, FeedingTimeline24 },
 	  data() {
 	    return {
       currentBaby: {},
@@ -720,26 +709,14 @@ import { formatZodiacText } from '@/utils/zodiac'
 
     hasNextFeeding() {
       const nowMs = Number(this.nowTickMs || Date.now())
-      let nextMs = Number(this.nextFeedingTimestampMs || 0)
-      if (!Number.isFinite(nextMs) || nextMs <= 0) {
-        const fallback = this.stats?.next_feeding_time
-        if (fallback) {
-          const parsed = this.parseTimeToMs(fallback)
-          nextMs = Number(parsed || 0)
-        }
-      }
+      const nextMs = Number(this.nextFeedingTimestampMs || 0)
       return Number.isFinite(nowMs) && nowMs > 0 && Number.isFinite(nextMs) && nextMs > 0
     },
 
     nextCountdownHMText() {
       if (!this.hasNextFeeding) return '--:--'
       const nowMs = Number(this.nowTickMs || Date.now())
-      let nextMs = Number(this.nextFeedingTimestampMs || 0)
-      if (!Number.isFinite(nextMs) || nextMs <= 0) {
-        const fallback = this.stats?.next_feeding_time
-        const parsed = fallback ? this.parseTimeToMs(fallback) : null
-        nextMs = Number(parsed || 0)
-      }
+      const nextMs = Number(this.nextFeedingTimestampMs || 0)
       if (!Number.isFinite(nowMs) || !Number.isFinite(nextMs) || nextMs <= 0) return '--:--'
       return this.formatDurationHMText(Math.abs(nextMs - nowMs))
     },
@@ -2851,10 +2828,7 @@ import { formatZodiacText } from '@/utils/zodiac'
         this.nowTickMs = nowMs
 
         // 下次喂奶：严格以服务端 timestamp 为准（与喂奶设置口径一致）
-        let nextMs = this.nextFeedingTimestampMs
-        if (!nextMs && this.stats?.next_feeding_time) {
-          nextMs = this.parseTimeToMs(this.stats.next_feeding_time)
-        }
+        const nextMs = this.nextFeedingTimestampMs
         if (Number.isFinite(nextMs) && nextMs > 0) {
           this.nextFeedingClockText = this.formatClockText(nextMs)
           this.nextFeedingDayLabel = this.formatDayLabel(nextMs, nowMs)

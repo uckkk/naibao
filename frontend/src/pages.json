@@ -40,6 +40,12 @@
       }
     },
     {
+      "path": "pages/legal/index",
+      "style": {
+        "navigationBarTitleText": "隐私与数据"
+      }
+    },
+    {
       "path": "pages/baby-info/index",
       "style": {
         "navigationBarTitleText": "宝宝基础资料"

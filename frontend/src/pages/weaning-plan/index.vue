@@ -20,7 +20,17 @@
       @action="goToBabyInfo"
     />
 
-    <NbLoadingSwitch v-else :loading="pageLoading">
+    <NbLoadable
+      v-else
+      :loading="pageLoading"
+      :errorText="errorText"
+      :empty="!plan"
+      emptyTitle="未开启转奶期"
+      emptyDesc="更换奶粉后，可选择开启 7 天转奶期（交替喂次，不混合）"
+      emptyActionText="去更换奶粉"
+      @retry="init"
+      @emptyAction="goFormula"
+    >
       <template #skeleton>
         <view class="group">
           <view class="summary-head">
@@ -48,26 +58,6 @@
         </view>
       </template>
 
-      <NbState
-        v-if="errorText"
-        type="error"
-        title="加载失败"
-        :desc="errorText"
-        actionText="重试"
-        @action="init"
-      />
-
-      <template v-else>
-        <NbState
-          v-if="!plan"
-          type="empty"
-          title="未开启转奶期"
-          desc="更换奶粉后，可选择开启 7 天转奶期（交替喂次，不混合）"
-          actionText="去更换奶粉"
-          @action="goFormula"
-        />
-
-        <template v-else>
           <view class="group">
             <view class="summary-head">
               <text class="summary-title">转奶期</text>
@@ -133,9 +123,7 @@
               </view>
             </view>
           </view>
-        </template>
-      </template>
-    </NbLoadingSwitch>
+    </NbLoadable>
 
     <NbConfirmSheet
       :visible="confirmVisible"
@@ -156,7 +144,7 @@ import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbLoadable from '@/components/NbLoadable.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 import NbConfirmSheet from '@/components/NbConfirmSheet.vue'
 
@@ -193,7 +181,7 @@ function computeNextSide(plan, feedings) {
 }
 
 export default {
-  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton, NbConfirmSheet },
+  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton, NbConfirmSheet },
   data() {
     return {
       babyId: null,
@@ -295,10 +283,12 @@ export default {
     this.meId = userStore.user?.id || null
     if (options?.babyId) this.babyId = options.babyId
     if (!this.babyId && userStore.currentBaby?.id) this.babyId = userStore.currentBaby.id
-    this.init()
   },
 
   onShow() {
+    const userStore = useUserStore()
+    // 多宝宝：默认全局跟随 currentBaby
+    if (userStore.currentBaby?.id) this.babyId = userStore.currentBaby.id
     // 从奶粉页返回时刷新，确保计划状态及时更新
     this.init()
   },
@@ -603,4 +593,3 @@ export default {
   color: var(--nb-danger);
 }
 </style>
-

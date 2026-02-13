@@ -9,22 +9,22 @@
         :size="120"
         :radius="60"
         :uploadUrl="babyAvatarUploadUrl"
-        :disabled="saving"
+        :disabled="saving || !canEdit"
         @uploaded="handleBabyAvatarUploaded"
       />
-      <text class="avatar-hint">轻点头像更换</text>
+      <text class="avatar-hint">{{ canEdit ? '轻点头像更换' : '仅管理员可编辑' }}</text>
       <text class="nickname-label">昵称</text>
       <text class="nickname-value">{{ baby.nickname || '宝宝' }}</text>
     </view>
     
     <!-- 信息字段 -->
     <view class="info-section">
-      <view class="info-item" @click="editField('nickname')">
+      <view class="info-item" @click="handleEditField('nickname')">
         <text class="label">昵称</text>
         <text class="value-display">{{ baby.nickname || '宝宝' }}</text>
       </view>
       
-      <view class="info-item" @click="editField('birth_date')">
+      <view class="info-item" @click="handleEditField('birth_date')">
         <text class="label">出生日期</text>
         <view class="value-stack">
           <text class="value-display">{{ formatDateDisplay(baby.birth_date) || '未填写' }}</text>
@@ -32,17 +32,17 @@
         </view>
       </view>
       
-      <view class="info-item" @click="editField('birth_time')">
+      <view class="info-item" @click="handleEditField('birth_time')">
         <text class="label">出生时间</text>
         <text class="value-display">{{ formatTimeDisplay(baby.birth_time) || '未填写' }}</text>
       </view>
 
-      <view class="info-item" @click="editField('weight')">
+      <view class="info-item" @click="handleEditField('weight')">
         <text class="label">体重 <text class="unit">kg</text></text>
         <text class="value-display">{{ formatNumberDisplay(baby.current_weight) }}</text>
       </view>
       
-      <view class="info-item" @click="editField('height')">
+      <view class="info-item" @click="handleEditField('height')">
         <text class="label">身高 <text class="unit">cm</text></text>
         <text class="value-display">{{ formatNumberDisplay(baby.current_height) }}</text>
       </view>
@@ -194,6 +194,8 @@ export default {
     return {
       baby: buildBlankBaby(),
       isNew: true,
+      myRole: '',
+      readonlyToastAt: 0,
       dirty: false,
       saving: false,
       showEditModal: false,
@@ -208,6 +210,14 @@ export default {
   },
 
   computed: {
+    canEdit() {
+      // 新建宝宝/未落库：始终可编辑
+      if (this.isNew || !this.baby?.id) return true
+      const r = String(this.myRole || '').trim().toLowerCase()
+      // 权限信息获取失败时：不强行阻塞管理员；真正权限由后端兜底。
+      if (!r) return true
+      return r === 'admin'
+    },
     zodiacText() {
       return formatZodiacText(this.baby?.birth_date) || ''
     },
@@ -263,6 +273,11 @@ export default {
     if (this.isNew && !this.baby.id) {
       this.restoreDraft()
     }
+
+    // 只读态：成员不可编辑宝宝基础信息
+    if (!this.isNew && this.baby?.id) {
+      this.loadMyRole()
+    }
   },
 
   onShow() {
@@ -290,6 +305,27 @@ export default {
       if (this.baby?.id && !this.isNew) this.loadBabyInfo()
     },
 
+    noticeReadonly() {
+      const now = Date.now()
+      if (now - Number(this.readonlyToastAt || 0) < 1200) return false
+      this.readonlyToastAt = now
+      try {
+        uni.showToast({ title: '仅管理员可编辑', icon: 'none' })
+      } catch {}
+      return false
+    },
+
+    guardEdit() {
+      if (this.canEdit) return true
+      this.noticeReadonly()
+      return false
+    },
+
+    handleEditField(field) {
+      if (!this.guardEdit()) return
+      this.editField(field)
+    },
+
     goBackOrHome() {
       if (this.showEditModal) {
         this.closeEditModal()
@@ -311,6 +347,7 @@ export default {
     },
 
     markDirty() {
+      if (!this.canEdit) return
       this.dirty = true
     },
 
@@ -385,6 +422,12 @@ export default {
     async handleDone() {
       if (this.showEditModal) {
         this.closeEditModal()
+        return
+      }
+
+      // 只读态（成员）：允许直接退出，不触发保存
+      if (this.baby?.id && !this.isNew && !this.canEdit) {
+        this.goBackOrHome()
         return
       }
 
@@ -496,10 +539,44 @@ export default {
         try { input.click() } catch {}
       })
     },
+
+    async loadMyRole() {
+      const babyId = this.baby?.id
+      if (!babyId || this.isNew) return
+
+      const userStore = useUserStore()
+      if (!userStore.user?.id) {
+        try {
+          const res = await api.get('/user/profile', {}, { silent: true })
+          if (res?.user) {
+            userStore.user = res.user
+            try {
+              uni.setStorageSync('user', res.user)
+            } catch {}
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      const meId = userStore.user?.id
+      if (!meId) return
+
+      try {
+        const res = await api.get(`/babies/${babyId}/family-members`, {}, { silent: true })
+        const members = Array.isArray(res?.members) ? res.members : []
+        const me = members.find((m) => String(m.user_id) === String(meId))
+        this.myRole = String(me?.role || '').trim()
+      } catch {
+        this.myRole = ''
+      }
+    },
+
     async loadBabyInfo() {
       try {
         const res = await api.get(`/babies/${this.baby.id}`)
         this.baby = res.baby
+        await this.loadMyRole()
       } catch (error) {
         uni.showToast({
           title: '加载失败',
@@ -511,6 +588,10 @@ export default {
     async handleBabyAvatarUploaded(url) {
       const nextUrl = String(url || '').trim()
       if (!nextUrl) return
+      if (!this.canEdit && this.baby?.id) {
+        this.noticeReadonly()
+        return
+      }
 
       // 与其它字段编辑一致：先更新本地展示，再按需保存。
       this.baby.avatar_url = nextUrl
@@ -588,6 +669,11 @@ export default {
     },
     
     async saveEdit() {
+      if (!this.guardEdit()) {
+        this.closeEditModal()
+        return
+      }
+
       if (this.editingField === 'weight') {
         this.baby.current_weight = this.editValue
       } else if (this.editingField === 'height') {
@@ -730,6 +816,14 @@ export default {
         const n = Number.parseInt(String(this.baby.current_height || '').trim(), 10)
         return Number.isFinite(n) && n > 0 ? n : null
       })()
+
+      // 只有管理员可更新已有宝宝信息；新建不受影响
+      if (this.baby?.id && !this.isNew && !this.canEdit) {
+        if (showErrorToast) {
+          uni.showToast({ title: '仅管理员可编辑宝宝信息', icon: 'none' })
+        }
+        return false
+      }
       
       if (this.saving) return false
       this.saving = true

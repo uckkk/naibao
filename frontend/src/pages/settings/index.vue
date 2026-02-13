@@ -10,7 +10,7 @@
       @action="goLogin"
     />
 
-    <NbLoadingSwitch v-else :loading="pageLoading">
+    <NbLoadable v-else :loading="pageLoading" :errorText="errorText" @retry="init">
       <template #skeleton>
         <view class="group">
           <view class="cells">
@@ -95,16 +95,6 @@
         </view>
       </template>
 
-      <NbState
-        v-if="errorText"
-        type="error"
-        title="加载失败"
-        :desc="errorText"
-        actionText="重试"
-        @action="init"
-      />
-
-      <template v-else>
       <!-- 账号 -->
       <view class="group">
         <view class="cells">
@@ -209,10 +199,16 @@
               <text class="chev">›</text>
             </view>
           </view>
+
+          <view class="cell tappable" @click="goLegal">
+            <text class="cell-title">隐私与数据</text>
+            <view class="cell-right">
+              <text class="chev">›</text>
+            </view>
+          </view>
         </view>
       </view>
-    </template>
-    </NbLoadingSwitch>
+    </NbLoadable>
   </view>
 </template>
 
@@ -222,12 +218,12 @@ import { useUserStore } from '@/stores/user'
 import { formatStageTextFromAgeRange } from '@/utils/formula_stage'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbLoadable from '@/components/NbLoadable.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 import NbSkeletonAvatar from '@/components/NbSkeletonAvatar.vue'
 
 export default {
-  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton, NbSkeletonAvatar },
+  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton, NbSkeletonAvatar },
   data() {
     return {
       pageLoading: false,
@@ -456,6 +452,10 @@ export default {
 
     goHelp() {
       uni.navigateTo({ url: '/pages/help/index' })
+    },
+
+    goLegal() {
+      uni.navigateTo({ url: '/pages/legal/index' })
     },
   },
 }

@@ -10,7 +10,7 @@
       @action="goToBabyInfo"
     />
 
-    <NbLoadingSwitch v-else :loading="pageLoading">
+    <NbLoadable v-else :loading="pageLoading" :errorText="errorText" @retry="reload">
       <template #skeleton>
         <view class="dd-hero">
           <view class="dd-title-row">
@@ -71,17 +71,6 @@
           </view>
         </view>
       </template>
-
-      <NbState
-        v-if="errorText"
-        type="error"
-        title="加载失败"
-        :desc="errorText"
-        actionText="重试"
-        @action="reload"
-      />
-
-      <template v-else>
     <!-- 信息减法：合并“宝宝信息/统计/参考”到一个摘要卡（更像 iOS Health 的信息层级） -->
     <view class="dd-hero">
       <view class="dd-title-row">
@@ -167,6 +156,28 @@
       </view>
     </view>
 
+    <!-- 待确认：成员提交后需要管理员确认才正式生效（且不参与推荐/统计） -->
+    <view v-if="growthSubmissions.length > 0" class="pending-panel">
+      <view class="pending-head">
+        <text class="pending-title">{{ pendingTitleText }}</text>
+        <text class="pending-sub">{{ pendingSubText }}</text>
+      </view>
+      <view class="pending-list">
+        <view v-for="sub in growthSubmissions" :key="sub.id" class="pending-item">
+          <view class="pending-left">
+            <text class="pending-date">{{ formatDateMD(sub.record_date) }}</text>
+            <text v-if="isGrowthAdmin && sub.submitter && sub.submitter.nickname" class="pending-by">{{ sub.submitter.nickname }}</text>
+          </view>
+          <text class="pending-growth">{{ pendingGrowthText(sub) }}</text>
+          <view class="pending-actions">
+            <view v-if="isGrowthAdmin" class="pending-btn primary" @click.stop="confirmSubmission(sub)">确认</view>
+            <view v-if="isGrowthAdmin" class="pending-btn ghost" @click.stop="rejectSubmission(sub)">退回</view>
+            <view v-else class="pending-btn ghost" @click.stop="cancelSubmission(sub)">撤回</view>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <view class="records-list">
       <view v-if="visibleDailyRecords.length <= 0" class="records-empty">
         <text class="records-empty-title">本月还没有记录</text>
@@ -192,6 +203,7 @@
           <text v-else class="record-milk-empty">—</text>
 
           <text v-if="growthText(record)" class="record-growth">{{ growthText(record) }}</text>
+          <text v-if="pendingLine(record.date)" class="record-pending">{{ pendingLine(record.date) }}</text>
         </view>
 
         <text class="record-arrow">›</text>
@@ -260,8 +272,7 @@
         </view>
       </view>
     </view>
-    </template>
-    </NbLoadingSwitch>
+    </NbLoadable>
   </view>
 </template>
 
@@ -271,7 +282,7 @@ import { useUserStore } from '@/stores/user'
 import { formatAgeTextFromDays, formatBabyAgeText } from '@/utils/age'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbLoadable from '@/components/NbLoadable.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 import NbConfirmSheet from '@/components/NbConfirmSheet.vue'
 
@@ -342,7 +353,7 @@ function buildRangeModel(value, range, refText) {
 }
 
 export default {
-  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton, NbConfirmSheet },
+  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton, NbConfirmSheet },
   data() {
     return {
       babyId: null,
@@ -364,6 +375,11 @@ export default {
       months: [],
       dailyRecords: [],
       showAllDays: false,
+
+      // 生长数据提交（成员提交 -> 管理员确认）
+      growthViewerRole: '',
+      growthSubmissions: [],
+      pendingActing: false,
 
       // 参考说明（信息减法：默认不占屏）
       referenceSheetVisible: false,
@@ -483,6 +499,42 @@ export default {
       return lines.join('\\n')
     },
 
+    isGrowthAdmin() {
+      const role = String(this.growthViewerRole || '').trim()
+      if (role) return role === 'admin'
+      const userStore = useUserStore()
+      const me = userStore.user?.id
+      const owner = userStore.currentBaby?.user_id
+      if (!me || !owner) return false
+      return String(me) === String(owner)
+    },
+
+    pendingTitleText() {
+      const n = Array.isArray(this.growthSubmissions) ? this.growthSubmissions.length : 0
+      if (n <= 0) return ''
+      return this.isGrowthAdmin ? `待确认（${n}）` : `待管理员确认（${n}）`
+    },
+
+    pendingSubText() {
+      const n = Array.isArray(this.growthSubmissions) ? this.growthSubmissions.length : 0
+      if (n <= 0) return ''
+      return this.isGrowthAdmin
+        ? '确认后才会正式写入，并影响推荐与统计'
+        : '提交后需管理员确认才会正式生效'
+    },
+
+    growthPendingMap() {
+      const list = Array.isArray(this.growthSubmissions) ? this.growthSubmissions : []
+      const map = {}
+      for (const s of list) {
+        const d = String(s?.record_date || '').trim()
+        if (!d) continue
+        if (!map[d]) map[d] = []
+        map[d].push(s)
+      }
+      return map
+    },
+
     visibleDailyRecords() {
       const list = Array.isArray(this.dailyRecords) ? this.dailyRecords : []
       if (this.showAllDays) return list
@@ -490,7 +542,9 @@ export default {
         const hasMilk = Number(r?.daily_amount || 0) > 0
         const hasW = r?.weight != null && Number(r.weight) > 0
         const hasH = r?.height != null && Number(r.height) > 0
-        return hasMilk || hasW || hasH
+        const dateStr = String(r?.date || '').trim()
+        const hasPending = !!(dateStr && this.growthPendingMap[dateStr]?.length)
+        return hasMilk || hasW || hasH || hasPending
       })
     },
 
@@ -516,10 +570,9 @@ export default {
 
   onShow() {
     // 从其他页面返回时，可能刚创建/切换宝宝，需要刷新数据
-    if (!this.babyId) {
-      const userStore = useUserStore()
-      if (userStore.currentBaby?.id) this.babyId = userStore.currentBaby.id
-    }
+    const userStore = useUserStore()
+    // 多宝宝：默认全局跟随 currentBaby
+    if (userStore.currentBaby?.id) this.babyId = userStore.currentBaby.id
 
     if (this.babyId && String(this.lastInitBabyId) !== String(this.babyId)) {
       this.reload()
@@ -551,6 +604,7 @@ export default {
       await Promise.all([
         this.loadGrowthStats(),
         this.loadDailyRecords(),
+        this.loadGrowthSubmissions(),
       ])
     },
     
@@ -589,6 +643,20 @@ export default {
       }
     },
 
+    async loadGrowthSubmissions() {
+      try {
+        // 待确认是“待处理事项”，不应被月份筛选隐藏。
+        const res = await api.get(`/babies/${this.babyId}/growth-submissions`)
+        this.growthViewerRole = res.viewer_role || ''
+        this.growthSubmissions = res.submissions || []
+      } catch (error) {
+        // 辅助信息：不阻塞主页面
+        console.warn('加载待确认提交失败', error)
+        this.growthViewerRole = ''
+        this.growthSubmissions = []
+      }
+    },
+
     async reload() {
       if (!this.babyId) return
       this.pageLoading = true
@@ -623,7 +691,10 @@ export default {
     async selectMonth(month) {
       this.selectedMonth = month
       try {
-        await this.loadDailyRecords()
+        await Promise.all([
+          this.loadDailyRecords(),
+          this.loadGrowthSubmissions(),
+        ])
       } catch (e) {
         uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
       }
@@ -660,6 +731,18 @@ export default {
       this.editingDate = record.date
       this.editWeight = record.weight ? String(Number(record.weight).toFixed(1)) : ''
       this.editHeight = record.height ? String(record.height) : ''
+
+      // 若当前日期存在“待确认提交”，优先用提交值预填，避免用户误以为没保存。
+      const pendings = this.growthPendingMap[String(record.date)] || []
+      if (Array.isArray(pendings) && pendings.length === 1) {
+        const sub = pendings[0] || {}
+        if (sub.weight != null && Number(sub.weight) > 0) {
+          this.editWeight = String(Number(sub.weight).toFixed(1))
+        }
+        if (sub.height != null && Number(sub.height) > 0) {
+          this.editHeight = String(sub.height)
+        }
+      }
       this.showEditModal = true
     },
 
@@ -702,8 +785,13 @@ export default {
 
       this.saving = true
       try {
-        await api.post(`/babies/${this.babyId}/growth-records`, payload)
-        uni.showToast({ title: '保存成功', icon: 'success' })
+        const res = await api.post(`/babies/${this.babyId}/growth-records`, payload)
+        const result = String(res?.result || '').trim()
+        if (result === 'pending') {
+          uni.showToast({ title: '已提交，待管理员确认', icon: 'none' })
+        } else {
+          uni.showToast({ title: '保存成功', icon: 'success' })
+        }
         this.closeEditModal()
         await this.loadData()
       } catch (error) {
@@ -730,6 +818,111 @@ export default {
       if (Number.isFinite(w) && w > 0) parts.push(`${w.toFixed(1)}kg`)
       if (Number.isFinite(h) && h > 0) parts.push(`${Math.round(h)}cm`)
       return parts.join(' · ')
+    },
+
+    pendingGrowthText(sub) {
+      const w = Number(sub?.weight)
+      const h = Number(sub?.height)
+      const parts = []
+      if (Number.isFinite(w) && w > 0) parts.push(`${w.toFixed(1)}kg`)
+      if (Number.isFinite(h) && h > 0) parts.push(`${Math.round(h)}cm`)
+      return parts.join(' · ')
+    },
+
+    pendingLine(dateStr) {
+      const d = String(dateStr || '').trim()
+      const list = (d && this.growthPendingMap[d]) || []
+      if (!Array.isArray(list) || list.length <= 0) return ''
+      if (this.isGrowthAdmin) return `待确认：${list.length}条`
+      return `待确认：${this.pendingGrowthText(list[0]) || '已提交'}`
+    },
+
+    async confirmSubmission(sub) {
+      if (!this.babyId || this.pendingActing) return
+      const id = sub?.id
+      if (!id) return
+
+      const content = '确认后会正式更新该日期体重/身高，并影响推荐与统计。'
+      const ok = await new Promise((resolve) => {
+        uni.showModal({
+          title: '确认写入？',
+          content,
+          confirmText: '确认',
+          cancelText: '取消',
+          success: (res) => resolve(!!res?.confirm),
+          fail: () => resolve(false),
+        })
+      })
+      if (!ok) return
+
+      this.pendingActing = true
+      try {
+        await api.post(`/babies/${this.babyId}/growth-submissions/${id}/confirm`, {})
+        uni.showToast({ title: '已确认', icon: 'success' })
+        await this.loadData()
+      } catch (e) {
+        uni.showToast({ title: e?.message || '操作失败', icon: 'none' })
+      } finally {
+        this.pendingActing = false
+      }
+    },
+
+    async rejectSubmission(sub) {
+      if (!this.babyId || this.pendingActing) return
+      const id = sub?.id
+      if (!id) return
+
+      const ok = await new Promise((resolve) => {
+        uni.showModal({
+          title: '退回提交？',
+          content: '退回后该提交不会写入统计与推荐。',
+          confirmText: '退回',
+          cancelText: '取消',
+          success: (res) => resolve(!!res?.confirm),
+          fail: () => resolve(false),
+        })
+      })
+      if (!ok) return
+
+      this.pendingActing = true
+      try {
+        await api.post(`/babies/${this.babyId}/growth-submissions/${id}/reject`, {})
+        uni.showToast({ title: '已退回', icon: 'none' })
+        await this.loadData()
+      } catch (e) {
+        uni.showToast({ title: e?.message || '操作失败', icon: 'none' })
+      } finally {
+        this.pendingActing = false
+      }
+    },
+
+    async cancelSubmission(sub) {
+      if (!this.babyId || this.pendingActing) return
+      const id = sub?.id
+      if (!id) return
+
+      const ok = await new Promise((resolve) => {
+        uni.showModal({
+          title: '撤回提交？',
+          content: '撤回后管理员将看不到该提交。',
+          confirmText: '撤回',
+          cancelText: '取消',
+          success: (res) => resolve(!!res?.confirm),
+          fail: () => resolve(false),
+        })
+      })
+      if (!ok) return
+
+      this.pendingActing = true
+      try {
+        await api.post(`/babies/${this.babyId}/growth-submissions/${id}/cancel`, {})
+        uni.showToast({ title: '已撤回', icon: 'none' })
+        await this.loadData()
+      } catch (e) {
+        uni.showToast({ title: e?.message || '操作失败', icon: 'none' })
+      } finally {
+        this.pendingActing = false
+      }
     }
   }
 }
@@ -983,6 +1176,125 @@ export default {
   box-sizing: border-box;
 }
 
+.pending-panel {
+  margin-bottom: 12px;
+  padding: 12px 12px 10px;
+  border-radius: var(--nb-radius-lg);
+  border: 1px solid rgba(255, 138, 61, 0.22);
+  background:
+    radial-gradient(520px 220px at 20% 0%, rgba(255, 138, 61, 0.14), rgba(255, 138, 61, 0) 62%),
+    rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 34px rgba(27, 26, 23, 0.05);
+  box-sizing: border-box;
+}
+
+.pending-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pending-title {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--nb-text);
+}
+
+.pending-sub {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(27, 26, 23, 0.55);
+  line-height: 1.4;
+}
+
+.pending-list {
+  margin-top: 10px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.pending-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-top: 1px solid rgba(27, 26, 23, 0.08);
+}
+
+.pending-item:first-child {
+  border-top: none;
+}
+
+.pending-left {
+  width: 86px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pending-date {
+  font-size: 13px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.86);
+  font-variant-numeric: tabular-nums;
+}
+
+.pending-by {
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(27, 26, 23, 0.52);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-growth {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(27, 26, 23, 0.78);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pending-actions {
+  flex: none;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.pending-btn {
+  padding: 0 10px;
+  height: 28px;
+  line-height: 28px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.pending-btn.primary {
+  background: rgba(46, 125, 50, 0.92);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 22px rgba(46, 125, 50, 0.18);
+}
+
+.pending-btn.ghost {
+  background: rgba(255, 255, 255, 0.90);
+  border: 1px solid rgba(27, 26, 23, 0.14);
+  color: rgba(27, 26, 23, 0.72);
+}
+
 .records-list {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--nb-border);
@@ -1109,6 +1421,14 @@ export default {
   font-size: 12px;
   font-weight: 800;
   color: rgba(27, 26, 23, 0.55);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.record-pending {
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(255, 138, 61, 0.92);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

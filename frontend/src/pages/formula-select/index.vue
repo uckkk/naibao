@@ -10,7 +10,17 @@
       @action="goToBabyInfo"
     />
 
-    <NbLoadingSwitch v-else :loading="pageLoading">
+    <NbLoadable
+      v-else
+      :loading="pageLoading"
+      :errorText="errorText"
+      :empty="brands.length === 0"
+      emptyTitle="暂无品牌数据"
+      emptyDesc="请稍后重试，或检查服务器是否正常运行"
+      emptyActionText="刷新"
+      @retry="init"
+      @emptyAction="init"
+    >
       <template #skeleton>
         <view class="group">
           <view class="group-head">
@@ -72,26 +82,6 @@
           <NbSkeleton :w="'100%'" :h="48" :radius="24" />
         </view>
       </template>
-
-      <NbState
-        v-if="errorText"
-        type="error"
-        title="加载失败"
-        :desc="errorText"
-        actionText="重试"
-        @action="init"
-      />
-
-      <NbState
-        v-else-if="brands.length === 0"
-        type="empty"
-        title="暂无品牌数据"
-        desc="请稍后重试，或检查服务器是否正常运行"
-        actionText="刷新"
-        @action="init"
-      />
-
-      <template v-else>
       <!-- 当前使用 -->
       <view class="group">
         <view class="group-head">
@@ -271,8 +261,7 @@
           {{ saving ? '保存中...' : confirmText }}
         </button>
       </view>
-      </template>
-    </NbLoadingSwitch>
+    </NbLoadable>
 
     <NbConfirmSheet
       :visible="confirmSheetVisible"
@@ -295,12 +284,12 @@ import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
 import { parseBirthDateToLocal, diffYmd } from '@/utils/age'
 import { formatStageTextFromAgeRange } from '@/utils/formula_stage'
-import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbLoadable from '@/components/NbLoadable.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 import NbConfirmSheet from '@/components/NbConfirmSheet.vue'
 
 export default {
-  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton, NbConfirmSheet },
+  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton, NbConfirmSheet },
   data() {
     return {
       babyId: null,
@@ -449,6 +438,15 @@ export default {
 
     this.readRecent()
     this.readBuyPlatform()
+  },
+
+  onShow() {
+    const userStore = useUserStore()
+    // 多宝宝：默认全局跟随 currentBaby
+    if (userStore.currentBaby?.id) {
+      this.babyId = userStore.currentBaby.id
+      this.baby = userStore.currentBaby
+    }
     this.init()
   },
   

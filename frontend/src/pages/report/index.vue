@@ -70,7 +70,17 @@
     </view>
 
     <view class="report-body">
-    <NbLoadingSwitch :loading="loading">
+    <NbLoadable
+      :loading="loading"
+      :errorText="errorText"
+      errorTitle="生成失败"
+      :empty="!report"
+      emptyTitle="还没有报告"
+      emptyDesc="选择范围后点“生成报告”"
+      emptyActionText="生成报告"
+      @retry="loadReport"
+      @emptyAction="loadReport"
+    >
       <template #skeleton>
         <view class="report-skel">
           <view class="summary-grid">
@@ -104,30 +114,10 @@
           </view>
         </view>
       </template>
-
-      <NbState
-        v-if="errorText"
-        type="error"
-        title="生成失败"
-        :desc="errorText"
-        actionText="重试"
-        @action="loadReport"
-      />
-
-      <NbState
-        v-else-if="!report"
-        type="empty"
-        title="还没有报告"
-        desc="选择范围后点“生成报告”"
-        actionText="生成报告"
-        @action="loadReport"
-      />
-
-      <template v-else>
-        <view class="summary-grid">
-          <view class="summary-card">
-            <text class="summary-k">总奶量</text>
-            <text class="summary-v">{{ report.summary.total_amount }}ml</text>
+      <view class="summary-grid">
+        <view class="summary-card">
+          <text class="summary-k">总奶量</text>
+          <text class="summary-v">{{ report.summary.total_amount }}ml</text>
           </view>
           <view class="summary-card">
             <text class="summary-k">日均</text>
@@ -170,8 +160,7 @@
             </view>
           </view>
         </view>
-      </template>
-    </NbLoadingSwitch>
+    </NbLoadable>
     </view>
     </template>
   </view>
@@ -182,11 +171,11 @@ import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbLoadable from '@/components/NbLoadable.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 
 export default {
-  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton },
+  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton },
   data() {
     return {
       babyId: null,
@@ -215,10 +204,9 @@ export default {
   },
 
   onShow() {
-    if (!this.babyId) {
-      const store = useUserStore()
-      if (store.currentBaby?.id) this.babyId = store.currentBaby.id
-    }
+    const store = useUserStore()
+    // 多宝宝：默认全局跟随 currentBaby
+    if (store.currentBaby?.id) this.babyId = store.currentBaby.id
   },
 
   methods: {

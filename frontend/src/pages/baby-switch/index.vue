@@ -2,7 +2,17 @@
   <view class="baby-switch-page">
     <NbNetworkBanner />
 
-    <NbLoadingSwitch :loading="loading">
+    <NbLoadable
+      :loading="loading"
+      :errorText="errorText"
+      :empty="babies.length === 0"
+      emptyType="info"
+      emptyTitle="还没有宝宝档案"
+      emptyDesc="先创建宝宝，才能记录与计算下次喂奶"
+      emptyActionText="去建档"
+      @retry="init"
+      @emptyAction="addBaby"
+    >
       <template #skeleton>
         <view class="group">
           <view class="cells">
@@ -22,25 +32,6 @@
         </view>
       </template>
 
-      <NbState
-        v-if="errorText"
-        type="error"
-        title="加载失败"
-        :desc="errorText"
-        actionText="重试"
-        @action="init"
-      />
-
-      <NbState
-        v-else-if="babies.length === 0"
-        type="info"
-        title="还没有宝宝档案"
-        desc="先创建宝宝，才能记录与计算下次喂奶"
-        actionText="去建档"
-        @action="addBaby"
-      />
-
-      <template v-else>
         <view class="group">
           <view class="cells">
             <view
@@ -67,8 +58,7 @@
           <button class="ghost-btn" :disabled="!currentBabyId" @click="editCurrentBaby">编辑当前宝宝</button>
           <button class="primary-btn" @click="addBaby">添加宝宝</button>
         </view>
-      </template>
-    </NbLoadingSwitch>
+    </NbLoadable>
   </view>
 </template>
 
@@ -77,13 +67,13 @@ import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import { formatBabyAgeText } from '@/utils/age'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbLoadable from '@/components/NbLoadable.vue'
 import NbState from '@/components/NbState.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 import NbSkeletonAvatar from '@/components/NbSkeletonAvatar.vue'
 
 export default {
-  components: { NbNetworkBanner, NbLoadingSwitch, NbState, NbSkeleton, NbSkeletonAvatar },
+  components: { NbNetworkBanner, NbLoadable, NbState, NbSkeleton, NbSkeletonAvatar },
   data() {
     return {
       loading: false,

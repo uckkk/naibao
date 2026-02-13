@@ -10,7 +10,7 @@
       @action="goToBabyInfo"
     />
 
-    <NbLoadingSwitch v-else :loading="pageLoading">
+    <NbLoadable v-else :loading="pageLoading" :errorText="errorText" @retry="init">
       <template #skeleton>
         <view class="section">
           <view class="section-header">
@@ -60,16 +60,17 @@
         </view>
       </template>
 
-      <NbState
-        v-if="errorText"
-        type="error"
-        title="加载失败"
-        :desc="errorText"
-        actionText="重试"
-        @action="init"
-      />
+      <view v-if="!canEdit" class="section role-note">
+        <NbState
+          embedded
+          type="info"
+          title="只读"
+          desc="当前为成员，仅管理员可修改喂奶间隔"
+          actionText="家庭共享"
+          @action="goFamily"
+        />
+      </view>
 
-      <template v-else>
     <!-- 白天设置 -->
     <view class="section">
       <view class="section-header">
@@ -185,12 +186,11 @@
 
     <!-- 底部保存按钮 -->
     <view class="footer">
-      <button class="save-btn" :disabled="!dirty || saving" @click="saveSettings">
-        {{ saving ? '保存中...' : (dirty ? '保存设置' : '已保存') }}
+      <button class="save-btn" :disabled="!canEdit || !dirty || saving" @click="saveSettings">
+        {{ !canEdit ? '仅管理员可保存' : (saving ? '保存中...' : (dirty ? '保存设置' : '已保存')) }}
       </button>
     </view>
-    </template>
-    </NbLoadingSwitch>
+    </NbLoadable>
   </view>
 </template>
 
@@ -199,7 +199,7 @@ import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-import NbLoadingSwitch from '@/components/NbLoadingSwitch.vue'
+import NbLoadable from '@/components/NbLoadable.vue'
 import NbSkeleton from '@/components/NbSkeleton.vue'
 import {
   getNotificationPermission,
@@ -212,10 +212,12 @@ import {
 } from '@/utils/system_notify'
 
 export default {
-  components: { NbState, NbNetworkBanner, NbLoadingSwitch, NbSkeleton },
+  components: { NbState, NbNetworkBanner, NbLoadable, NbSkeleton },
   data() {
     return {
       babyId: null,
+      myRole: '',
+      readonlyToastAt: 0,
       focusTarget: '',
       focusDone: false,
       pageLoading: false,
@@ -245,6 +247,13 @@ export default {
   },
 
   computed: {
+    canEdit() {
+      const r = String(this.myRole || '').trim().toLowerCase()
+      // 权限信息获取失败时：不强行阻塞管理员；真正的权限仍由后端兜底。
+      if (!r) return true
+      return r === 'admin'
+    },
+
     systemNotifyEffective() {
       return !!(this.systemNotifySupported && this.systemNotifyEnabled && this.systemNotifyPermission === 'granted')
     },
@@ -288,12 +297,10 @@ export default {
 
   onShow() {
     // 从“建档/选择宝宝”等页面返回时，刷新 babyId 并重载
-    if (!this.babyId) {
-      const userStore = useUserStore()
-      if (userStore.currentBaby?.id) {
-        this.babyId = userStore.currentBaby.id
-      }
-    }
+    const userStore = useUserStore()
+    // 多宝宝：默认全局跟随 currentBaby
+    if (userStore.currentBaby?.id) this.babyId = userStore.currentBaby.id
+
     if (this.babyId && String(this.lastInitBabyId) !== String(this.babyId)) {
       this.init()
     }
@@ -307,13 +314,64 @@ export default {
       this.init()
     },
 
+    noticeReadonly() {
+      const now = Date.now()
+      if (now - Number(this.readonlyToastAt || 0) < 1200) return false
+      this.readonlyToastAt = now
+      try {
+        uni.showToast({ title: '仅管理员可修改', icon: 'none' })
+      } catch {}
+      return false
+    },
+
+    guardEdit() {
+      if (this.canEdit) return true
+      this.noticeReadonly()
+      return false
+    },
+
+    async loadMyRole() {
+      if (!this.babyId) return
+      const userStore = useUserStore()
+
+      // 兜底：部分场景 store.user 可能尚未恢复（首次打开/缓存被清理）
+      if (!userStore.user?.id) {
+        try {
+          const res = await api.get('/user/profile', {}, { silent: true })
+          if (res?.user) {
+            userStore.user = res.user
+            try {
+              uni.setStorageSync('user', res.user)
+            } catch {}
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      const meId = userStore.user?.id
+      if (!meId) return
+
+      try {
+        const res = await api.get(`/babies/${this.babyId}/family-members`, {}, { silent: true })
+        const members = Array.isArray(res?.members) ? res.members : []
+        const me = members.find((m) => String(m.user_id) === String(meId))
+        this.myRole = String(me?.role || '').trim()
+      } catch {
+        // 权限信息非关键路径：失败时按“未知”处理
+        this.myRole = ''
+      }
+    },
+
     async init() {
       if (!this.babyId) return
       this.pageLoading = true
       this.errorText = ''
+      this.myRole = ''
       try {
         await this.loadSettings()
         await this.loadNextFeedingTime()
+        await this.loadMyRole()
         this.lastInitBabyId = this.babyId
       } catch (e) {
         this.errorText = e?.message || '加载失败'
@@ -379,25 +437,30 @@ export default {
     },
 
     markDirty() {
+      if (!this.canEdit) return
       this.dirty = true
     },
     
     selectDayInterval(num) {
+      if (!this.guardEdit()) return
       this.settings.dayInterval = num
       this.markDirty()
     },
     
     selectNightInterval(num) {
+      if (!this.guardEdit()) return
       this.settings.nightInterval = num
       this.markDirty()
     },
     
     selectAdvanceMinutes(num) {
+      if (!this.guardEdit()) return
       this.settings.advanceMinutes = num
       this.markDirty()
     },
     
     toggleReminder() {
+      if (!this.guardEdit()) return
       this.settings.reminderEnabled = !this.settings.reminderEnabled
       this.markDirty()
     },
@@ -480,6 +543,10 @@ export default {
 
     async saveSettings() {
       if (!this.babyId || this.saving) return
+      if (!this.canEdit) {
+        this.noticeReadonly()
+        return
+      }
       this.saving = true
       try {
         const res = await api.put(`/babies/${this.babyId}/settings`, {
@@ -510,6 +577,11 @@ export default {
         this.dirty = false
         await this.loadNextFeedingTime()
       } catch (error) {
+        if (error?.status === 403) {
+          this.myRole = 'member'
+          uni.showToast({ title: '仅管理员可修改设置', icon: 'none' })
+          return
+        }
         uni.showToast({
           title: error.message || '保存失败',
           icon: 'none'
@@ -517,6 +589,12 @@ export default {
       } finally {
         this.saving = false
       }
+    },
+
+    goFamily() {
+      const bid = this.babyId
+      if (!bid) return
+      uni.navigateTo({ url: `/pages/family/index?babyId=${encodeURIComponent(String(bid))}` })
     },
 
     goToBabyInfo() {
