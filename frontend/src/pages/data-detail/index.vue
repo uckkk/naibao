@@ -938,16 +938,16 @@ export default {
 }
 
 .tappable:active {
-  background: rgba(27, 26, 23, 0.03);
+  background: var(--nb-fill-2);
 }
 
 .dd-hero {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nb-card-bg);
   border: 1px solid var(--nb-border);
   border-radius: var(--nb-radius-lg);
   padding: 16px;
   margin-bottom: 14px;
-  box-shadow: 0 14px 34px rgba(27, 26, 23, 0.06);
+  box-shadow: var(--nb-shadow-card-weak);
   box-sizing: border-box;
 }
 
@@ -977,7 +977,7 @@ export default {
   gap: 6px;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(27, 26, 23, 0.12);
+  border: 1px solid var(--nb-border-2);
   background: rgba(255, 255, 255, 0.65);
   box-sizing: border-box;
 }
@@ -985,15 +985,15 @@ export default {
 .dd-help-text {
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
 }
 
 .dd-help-icon {
   width: 18px;
   height: 18px;
   border-radius: 9px;
-  background: rgba(27, 26, 23, 0.08);
-  color: rgba(27, 26, 23, 0.72);
+  background: var(--nb-line);
+  color: rgba(var(--nb-ink-rgb), 0.72);
   text-align: center;
   line-height: 18px;
   font-size: 12px;
@@ -1004,7 +1004,7 @@ export default {
   margin-top: 10px;
   font-size: 13px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.60);
+  color: rgba(var(--nb-ink-rgb), 0.60);
 }
 
 .dd-metrics {
@@ -1025,7 +1025,7 @@ export default {
 .dd-metric-label {
   font-size: 13px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.70);
+  color: rgba(var(--nb-ink-rgb), 0.70);
 }
 
 .dd-metric-value {
@@ -1037,7 +1037,7 @@ export default {
 
 .dd-divider {
   height: 1px;
-  background: rgba(27, 26, 23, 0.08);
+  background: var(--nb-line);
 }
 
 .dd-range {
@@ -1048,7 +1048,7 @@ export default {
   position: relative;
   height: 10px;
   border-radius: 999px;
-  background: rgba(27, 26, 23, 0.08);
+  background: var(--nb-line);
   overflow: hidden;
 }
 
@@ -1067,9 +1067,9 @@ export default {
   height: 12px;
   border-radius: 999px;
   transform: translate(-50%, -50%);
-  background: rgba(27, 26, 23, 0.92);
+  background: rgba(var(--nb-ink-rgb), 0.92);
   border: 2px solid rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 24px rgba(27, 26, 23, 0.14);
+  box-shadow: 0 10px 24px rgba(var(--nb-ink-rgb), 0.14);
   box-sizing: border-box;
 }
 
@@ -1082,7 +1082,7 @@ export default {
 }
 
 .dd-range-marker.st-unknown {
-  background: rgba(27, 26, 23, 0.30);
+  background: rgba(var(--nb-ink-rgb), 0.30);
 }
 
 .dd-range-ref {
@@ -1090,7 +1090,7 @@ export default {
   display: block;
   font-size: 12px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.55);
+  color: var(--nb-muted-2);
 }
 
 .dd-tip {
@@ -1117,7 +1117,7 @@ export default {
   line-height: 38px;
   margin-right: 10px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nb-card-bg);
   border: 1px solid var(--nb-border);
   color: var(--nb-muted);
   font-size: 14px;
@@ -1152,8 +1152,8 @@ export default {
   align-items: center;
   padding: 2px;
   border-radius: 999px;
-  background: rgba(27, 26, 23, 0.06);
-  border: 1px solid rgba(27, 26, 23, 0.10);
+  background: var(--nb-fill);
+  border: 1px solid var(--nb-border);
   box-sizing: border-box;
 }
 
@@ -1164,15 +1164,15 @@ export default {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   user-select: none;
 }
 
 .seg-item.active {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(27, 26, 23, 0.12);
-  color: rgba(27, 26, 23, 0.86);
-  box-shadow: 0 10px 24px rgba(27, 26, 23, 0.10);
+  background: var(--nb-card-bg);
+  border: 1px solid var(--nb-border-2);
+  color: rgba(var(--nb-ink-rgb), 0.86);
+  box-shadow: var(--nb-shadow-float);
   box-sizing: border-box;
 }
 
@@ -1183,8 +1183,8 @@ export default {
   border: 1px solid rgba(255, 138, 61, 0.22);
   background:
     radial-gradient(520px 220px at 20% 0%, rgba(255, 138, 61, 0.14), rgba(255, 138, 61, 0) 62%),
-    rgba(255, 255, 255, 0.92);
-  box-shadow: 0 14px 34px rgba(27, 26, 23, 0.05);
+    var(--nb-card-bg);
+  box-shadow: var(--nb-shadow-card-weak);
   box-sizing: border-box;
 }
 
@@ -1203,7 +1203,7 @@ export default {
 .pending-sub {
   font-size: 12px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.55);
+  color: var(--nb-muted-2);
   line-height: 1.4;
 }
 
@@ -1211,8 +1211,8 @@ export default {
   margin-top: 10px;
   border-radius: 14px;
   overflow: hidden;
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--nb-border);
+  background: var(--nb-card-bg-2);
 }
 
 .pending-item {
@@ -1221,7 +1221,7 @@ export default {
   align-items: center;
   gap: 10px;
   padding: 10px 10px;
-  border-top: 1px solid rgba(27, 26, 23, 0.08);
+  border-top: 1px solid var(--nb-line);
 }
 
 .pending-item:first-child {
@@ -1239,14 +1239,14 @@ export default {
 .pending-date {
   font-size: 13px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.86);
+  color: rgba(var(--nb-ink-rgb), 0.86);
   font-variant-numeric: tabular-nums;
 }
 
 .pending-by {
   font-size: 11px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.52);
+  color: rgba(var(--nb-ink-rgb), 0.52);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1258,7 +1258,7 @@ export default {
   text-align: right;
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.78);
+  color: rgba(var(--nb-ink-rgb), 0.78);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
@@ -1291,16 +1291,16 @@ export default {
 
 .pending-btn.ghost {
   background: rgba(255, 255, 255, 0.90);
-  border: 1px solid rgba(27, 26, 23, 0.14);
-  color: rgba(27, 26, 23, 0.72);
+  border: 1px solid rgba(var(--nb-ink-rgb), 0.14);
+  color: rgba(var(--nb-ink-rgb), 0.72);
 }
 
 .records-list {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nb-card-bg);
   border: 1px solid var(--nb-border);
   border-radius: var(--nb-radius-lg);
   overflow: hidden;
-  box-shadow: 0 14px 34px rgba(27, 26, 23, 0.05);
+  box-shadow: var(--nb-shadow-card-weak);
 }
 
 .records-empty {
@@ -1320,7 +1320,7 @@ export default {
   margin-top: 6px;
   font-size: 12px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.55);
+  color: var(--nb-muted-2);
   line-height: 1.6;
 }
 
@@ -1330,7 +1330,7 @@ export default {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border-top: 1px solid rgba(27, 26, 23, 0.08);
+  border-top: 1px solid var(--nb-line);
 }
 
 .record-cell:first-child {
@@ -1356,7 +1356,7 @@ export default {
 .record-week {
   font-size: 12px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.55);
+  color: var(--nb-muted-2);
   white-space: nowrap;
 }
 
@@ -1382,8 +1382,8 @@ export default {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: rgba(27, 26, 23, 0.30);
-  box-shadow: 0 6px 16px rgba(27, 26, 23, 0.14);
+  background: rgba(var(--nb-ink-rgb), 0.30);
+  box-shadow: 0 6px 16px rgba(var(--nb-ink-rgb), 0.14);
 }
 
 .record-dot.st-ok {
@@ -1399,13 +1399,13 @@ export default {
 }
 
 .record-dot.st-unknown {
-  background: rgba(27, 26, 23, 0.26);
+  background: rgba(var(--nb-ink-rgb), 0.26);
 }
 
 .record-milk {
   font-size: 14px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.86);
+  color: rgba(var(--nb-ink-rgb), 0.86);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1413,14 +1413,14 @@ export default {
 .record-milk-empty {
   font-size: 14px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.35);
+  color: var(--nb-faint);
   white-space: nowrap;
 }
 
 .record-growth {
   font-size: 12px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.55);
+  color: var(--nb-muted-2);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1437,7 +1437,7 @@ export default {
   flex: none;
   font-size: 18px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.35);
+  color: var(--nb-faint);
   line-height: 1;
 }
 
@@ -1483,9 +1483,9 @@ export default {
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  background: rgba(27, 26, 23, 0.06);
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  color: rgba(27, 26, 23, 0.62);
+  background: var(--nb-fill);
+  border: 1px solid var(--nb-border);
+  color: var(--nb-muted);
   text-align: center;
   line-height: 34px;
   font-size: 22px;
@@ -1511,14 +1511,14 @@ export default {
   display: block;
   font-size: 13px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   margin-bottom: 6px;
 }
 
 .edit-input {
   width: 100%;
   height: 46px;
-  border: 2px solid rgba(27, 26, 23, 0.10);
+  border: 2px solid var(--nb-border);
   border-radius: 14px;
   padding: 0 14px;
   box-sizing: border-box;
@@ -1529,7 +1529,7 @@ export default {
 .edit-input:focus {
   outline: none;
   border-color: var(--nb-accent);
-  box-shadow: 0 0 0 4px rgba(247, 201, 72, 0.22);
+  box-shadow: var(--nb-ring);
 }
 
 .edit-modal-footer {
@@ -1548,9 +1548,9 @@ export default {
 }
 
 .cancel-btn {
-  background: rgba(27, 26, 23, 0.06);
-  border: 1px solid rgba(27, 26, 23, 0.12);
-  color: rgba(27, 26, 23, 0.82);
+  background: var(--nb-fill);
+  border: 1px solid var(--nb-border-2);
+  color: rgba(var(--nb-ink-rgb), 0.82);
 }
 
 .confirm-btn {
@@ -1560,7 +1560,7 @@ export default {
 }
 
 .confirm-btn[disabled] {
-  background: rgba(27, 26, 23, 0.12);
-  color: rgba(27, 26, 23, 0.45);
+  background: rgba(var(--nb-ink-rgb), 0.12);
+  color: var(--nb-muted-3);
 }
 </style>

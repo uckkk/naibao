@@ -260,11 +260,11 @@ export default {
 }
 
 .group {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nb-card-bg);
   border: 1px solid var(--nb-border);
   border-radius: var(--nb-radius-lg);
   overflow: hidden;
-  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.08);
+  box-shadow: var(--nb-shadow-card);
   margin-bottom: 12px;
   padding: 14px;
 }
@@ -280,7 +280,7 @@ export default {
   flex-direction: row;
   align-items: center;
   padding: 12px 14px;
-  border-top: 1px solid rgba(27, 26, 23, 0.08);
+  border-top: 1px solid var(--nb-line);
   gap: 10px;
 }
 
@@ -289,7 +289,7 @@ export default {
 }
 
 .tappable:active {
-  background: rgba(27, 26, 23, 0.03);
+  background: var(--nb-fill-2);
 }
 
 .cell-title {
@@ -312,7 +312,7 @@ export default {
 
 .cell-value {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.56);
+  color: rgba(var(--nb-ink-rgb), 0.56);
   font-weight: 800;
   max-width: 150px;
   white-space: nowrap;
@@ -322,7 +322,7 @@ export default {
 
 .chev {
   font-size: 18px;
-  color: rgba(27, 26, 23, 0.38);
+  color: rgba(var(--nb-ink-rgb), 0.38);
   font-weight: 900;
 }
 
@@ -343,14 +343,14 @@ export default {
 .group-value {
   font-size: 18px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.92);
+  color: rgba(var(--nb-ink-rgb), 0.92);
 }
 
 .group-desc {
   display: block;
   margin-top: 6px;
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.55);
+  color: var(--nb-muted-2);
 }
 
 .segments {
@@ -363,8 +363,8 @@ export default {
 .seg {
   padding: 10px 6px;
   border-radius: 14px;
-  border: 1px solid rgba(27, 26, 23, 0.10);
-  background: rgba(27, 26, 23, 0.04);
+  border: 1px solid var(--nb-border);
+  background: rgba(var(--nb-ink-rgb), 0.04);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -385,13 +385,13 @@ export default {
 .seg-text {
   font-size: 12px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.88);
+  color: rgba(var(--nb-ink-rgb), 0.88);
   white-space: nowrap;
 }
 
 .seg-sub {
   font-size: 11px;
-  color: rgba(27, 26, 23, 0.54);
+  color: rgba(var(--nb-ink-rgb), 0.54);
   font-weight: 800;
   white-space: nowrap;
 }
@@ -399,14 +399,14 @@ export default {
 .hint {
   margin-top: 12px;
   border-radius: 14px;
-  border: 1px solid rgba(27, 26, 23, 0.08);
+  border: 1px solid var(--nb-line);
   background: rgba(255, 255, 255, 0.70);
   padding: 10px 12px;
 }
 
 .hint-text {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   line-height: 1.6;
 }
 

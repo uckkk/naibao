@@ -455,11 +455,11 @@ export default {
 }
 
 .group {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nb-card-bg);
   border: 1px solid var(--nb-border);
   border-radius: var(--nb-radius-lg);
   overflow: hidden;
-  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.08);
+  box-shadow: var(--nb-shadow-card);
   margin-bottom: 12px;
   padding: 14px;
 }
@@ -483,22 +483,22 @@ export default {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
-  border: 1px solid rgba(27, 26, 23, 0.10);
+  border: 1px solid var(--nb-border);
 }
 
 .status-pill.active {
   background: rgba(247, 201, 72, 0.18);
-  color: rgba(27, 26, 23, 0.86);
+  color: rgba(var(--nb-ink-rgb), 0.86);
 }
 
 .status-pill.paused {
-  background: rgba(27, 26, 23, 0.06);
-  color: rgba(27, 26, 23, 0.66);
+  background: var(--nb-fill);
+  color: rgba(var(--nb-ink-rgb), 0.66);
 }
 
 .status-pill.done {
   background: rgba(82, 196, 26, 0.12);
-  color: rgba(27, 26, 23, 0.78);
+  color: rgba(var(--nb-ink-rgb), 0.78);
 }
 
 .status-pill-text {
@@ -518,7 +518,7 @@ export default {
   display: block;
   margin-top: 8px;
   font-size: 13px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   line-height: 1.6;
 }
 
@@ -534,7 +534,7 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px;
-  border-top: 1px solid rgba(27, 26, 23, 0.08);
+  border-top: 1px solid var(--nb-line);
   gap: 10px;
 }
 
@@ -543,7 +543,7 @@ export default {
 }
 
 .tappable:active {
-  background: rgba(27, 26, 23, 0.03);
+  background: var(--nb-fill-2);
 }
 
 .cell-title {
@@ -561,7 +561,7 @@ export default {
 
 .cell-value {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   font-weight: 800;
   max-width: 200px;
   white-space: nowrap;
@@ -571,12 +571,12 @@ export default {
 
 .chev {
   font-size: 18px;
-  color: rgba(27, 26, 23, 0.38);
+  color: rgba(var(--nb-ink-rgb), 0.38);
   font-weight: 900;
 }
 
 .muted {
-  color: rgba(27, 26, 23, 0.45);
+  color: var(--nb-muted-3);
 }
 
 .group-foot {
@@ -585,7 +585,7 @@ export default {
 
 .group-foot-text {
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.56);
+  color: rgba(var(--nb-ink-rgb), 0.56);
   line-height: 1.6;
 }
 

@@ -135,17 +135,17 @@ export default {
   display: block;
   margin: 12px 6px 8px;
   font-size: 12px;
-  color: rgba(27, 26, 23, 0.50);
+  color: rgba(var(--nb-ink-rgb), 0.50);
   letter-spacing: 0.4px;
   font-weight: 800;
 }
 
 .group {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nb-card-bg);
   border: 1px solid var(--nb-border);
   border-radius: var(--nb-radius-lg);
   overflow: hidden;
-  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.08);
+  box-shadow: var(--nb-shadow-card);
   margin-bottom: 10px;
 }
 
@@ -160,7 +160,7 @@ export default {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-top: 1px solid rgba(27, 26, 23, 0.08);
+  border-top: 1px solid var(--nb-line);
 }
 
 .cell:first-child {
@@ -168,14 +168,14 @@ export default {
 }
 
 .cell.tappable:active {
-  background: rgba(27, 26, 23, 0.03);
+  background: var(--nb-fill-2);
 }
 
 .cell-title {
   flex: 0 0 auto;
   font-size: 14px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.92);
+  color: rgba(var(--nb-ink-rgb), 0.92);
 }
 
 .cell-value {
@@ -183,14 +183,14 @@ export default {
   min-width: 0;
   font-size: 13px;
   font-weight: 800;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   text-align: right;
 }
 
 .chev {
   font-size: 18px;
   font-weight: 900;
-  color: rgba(27, 26, 23, 0.34);
+  color: rgba(var(--nb-ink-rgb), 0.34);
 }
 
 .danger-text {
@@ -204,7 +204,7 @@ export default {
 .note-text {
   font-size: 12px;
   line-height: 1.5;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
 }
 
 .footer {
@@ -217,11 +217,10 @@ export default {
   height: 40px;
   padding: 0 16px;
   border-radius: 20px;
-  background: rgba(27, 26, 23, 0.06);
-  border: 1px solid rgba(27, 26, 23, 0.12);
-  color: rgba(27, 26, 23, 0.82);
+  background: var(--nb-fill);
+  border: 1px solid var(--nb-border-2);
+  color: rgba(var(--nb-ink-rgb), 0.82);
   font-weight: 900;
   font-size: 13px;
 }
 </style>
-

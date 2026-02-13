@@ -72,8 +72,26 @@ page {
 page {
   --nb-surface: #ffffff;
   --nb-text: #1b1a17;
-  --nb-muted: rgba(27, 26, 23, 0.62);
-  --nb-border: rgba(27, 26, 23, 0.10);
+  --nb-ink-rgb: 27, 26, 23;
+
+  --nb-muted: rgba(var(--nb-ink-rgb), 0.62);
+  --nb-muted-2: rgba(var(--nb-ink-rgb), 0.55);
+  --nb-muted-3: rgba(var(--nb-ink-rgb), 0.45);
+  --nb-faint: rgba(var(--nb-ink-rgb), 0.35);
+
+  --nb-line: rgba(var(--nb-ink-rgb), 0.08);
+  --nb-border: rgba(var(--nb-ink-rgb), 0.10);
+  --nb-border-2: rgba(var(--nb-ink-rgb), 0.12);
+  --nb-fill: rgba(var(--nb-ink-rgb), 0.06);
+  --nb-fill-2: rgba(var(--nb-ink-rgb), 0.03);
+
+  --nb-card-bg: rgba(255, 255, 255, 0.92);
+  --nb-card-bg-2: rgba(255, 255, 255, 0.82);
+  --nb-shadow-card: 0 18px 50px rgba(var(--nb-ink-rgb), 0.08);
+  --nb-shadow-card-weak: 0 14px 34px rgba(var(--nb-ink-rgb), 0.05);
+  --nb-shadow-float: 0 10px 24px rgba(var(--nb-ink-rgb), 0.10);
+  --nb-ring: 0 0 0 4px rgba(247, 201, 72, 0.22);
+
   --nb-accent: #f7c948; /* 焦糖黄 */
   --nb-accent-2: #ff8a3d; /* 奶橙 */
   --nb-danger: #e24a3b;
@@ -128,12 +146,12 @@ page {
   width: 100%;
   max-width: 420px;
   margin: 0 auto;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nb-card-bg);
   border: 1px solid var(--nb-border);
   border-radius: var(--nb-radius-lg);
   padding: 22px;
   box-sizing: border-box;
-  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.10);
+  box-shadow: 0 18px 50px rgba(var(--nb-ink-rgb), 0.10);
 }
 
 .nb-field {
@@ -147,14 +165,14 @@ page {
   border-radius: 14px;
   padding: 0 14px;
   font-size: 16px;
-  border: 2px solid rgba(27, 26, 23, 0.10);
+  border: 2px solid var(--nb-border);
   box-sizing: border-box;
 }
 
 .nb-input:focus {
   outline: none;
   border-color: var(--nb-accent);
-  box-shadow: 0 0 0 4px rgba(247, 201, 72, 0.22);
+  box-shadow: var(--nb-ring);
 }
 
 .nb-input::placeholder {
@@ -177,8 +195,8 @@ page {
 }
 
 .nb-primary-btn[disabled] {
-  background: rgba(27, 26, 23, 0.12);
-  color: rgba(27, 26, 23, 0.45);
+  background: rgba(var(--nb-ink-rgb), 0.12);
+  color: var(--nb-muted-3);
 }
 
 .nb-link {

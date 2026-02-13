@@ -52,7 +52,7 @@ export default {
 
 <style scoped>
 .nb-state {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nb-card-bg);
   border: 1px solid var(--nb-border);
   border-radius: var(--nb-radius-lg);
   padding: 16px;
@@ -60,7 +60,7 @@ export default {
   flex-direction: column;
   gap: 10px;
   box-sizing: border-box;
-  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.10);
+  box-shadow: 0 18px 50px rgba(var(--nb-ink-rgb), 0.10);
 }
 
 .nb-state.embedded {
@@ -81,13 +81,13 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(27, 26, 23, 0.06);
-  border: 1px solid rgba(27, 26, 23, 0.08);
+  background: var(--nb-fill);
+  border: 1px solid var(--nb-line);
 }
 
 .icon-text {
   font-size: 18px;
-  color: rgba(27, 26, 23, 0.72);
+  color: rgba(var(--nb-ink-rgb), 0.72);
   font-weight: 900;
 }
 
@@ -102,7 +102,7 @@ export default {
 }
 
 .t-empty .icon {
-  background: rgba(27, 26, 23, 0.04);
+  background: rgba(var(--nb-ink-rgb), 0.04);
 }
 
 .title {

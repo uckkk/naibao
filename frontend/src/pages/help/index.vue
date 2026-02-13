@@ -79,11 +79,11 @@ export default {
 }
 
 .group {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--nb-card-bg);
   border: 1px solid var(--nb-border);
   border-radius: var(--nb-radius-lg);
   overflow: hidden;
-  box-shadow: 0 18px 50px rgba(27, 26, 23, 0.08);
+  box-shadow: var(--nb-shadow-card);
   margin-bottom: 12px;
 }
 
@@ -94,7 +94,7 @@ export default {
 
 .cell {
   padding: 14px;
-  border-top: 1px solid rgba(27, 26, 23, 0.08);
+  border-top: 1px solid var(--nb-line);
 }
 
 .cell:first-child {
@@ -112,7 +112,7 @@ export default {
   display: block;
   margin-top: 6px;
   font-size: 13px;
-  color: rgba(27, 26, 23, 0.62);
+  color: var(--nb-muted);
   line-height: 1.6;
 }
 
@@ -125,12 +125,12 @@ export default {
 }
 
 .tappable:active {
-  background: rgba(27, 26, 23, 0.03);
+  background: var(--nb-fill-2);
 }
 
 .chev {
   font-size: 18px;
-  color: rgba(27, 26, 23, 0.38);
+  color: rgba(var(--nb-ink-rgb), 0.38);
   font-weight: 900;
 }
 </style>
