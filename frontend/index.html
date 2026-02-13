@@ -2,10 +2,26 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <!-- PWA / iOS 添加到主屏幕：图标与主题色（避免顶部出现突兀白底）。 -->
+  <meta name="theme-color" content="#FFFAF2">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="奶宝">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>奶宝</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍼</text></svg>">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/app-icon/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/app-icon/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/app-icon/favicon-16.png">
   <style>
+    html, body {
+      height: 100%;
+      /* 给浏览器/安全区兜底：背景从顶部铺满，避免出现白底“标题栏”观感。 */
+      background:
+        radial-gradient(1200px 600px at 20% -10%, rgba(255, 216, 136, 0.35), rgba(255, 216, 136, 0) 60%),
+        radial-gradient(900px 500px at 90% 0%, rgba(255, 155, 92, 0.22), rgba(255, 155, 92, 0) 55%),
+        #fffaf2;
+    }
     body {
       margin: 0;
       padding: 0;
