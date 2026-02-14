@@ -71,11 +71,51 @@
         />
       </view>
 
+    <!-- 时间段（影响“白天/晚上”的间隔应用范围） -->
+    <view class="section">
+      <view class="section-header">
+        <text class="section-title">时间段</text>
+        <text class="section-desc">把“晚上”对齐你的睡觉时间，能更少夜醒</text>
+      </view>
+
+      <view class="range-row">
+        <view class="range-col">
+          <text class="range-label">白天开始</text>
+          <scroll-view class="number-picker" scroll-x>
+            <view
+              v-for="h in hourNumbers"
+              :key="'ds-' + h"
+              :class="['number-item', { active: h === settings.dayStartHour }]"
+              @click="selectDayStartHour(h)"
+            >
+              <text>{{ pad2(h) }}</text>
+            </view>
+          </scroll-view>
+        </view>
+
+        <view class="range-col">
+          <text class="range-label">白天结束</text>
+          <scroll-view class="number-picker" scroll-x>
+            <view
+              v-for="h in hourNumbers"
+              :key="'de-' + h"
+              :class="['number-item', { active: h === settings.dayEndHour }]"
+              @click="selectDayEndHour(h)"
+            >
+              <text>{{ pad2(h) }}</text>
+            </view>
+          </scroll-view>
+        </view>
+      </view>
+
+      <text class="picker-hint">白天：{{ pad2(settings.dayStartHour) }}:00-{{ pad2(settings.dayEndHour) }}:00 · 晚上：{{ pad2(settings.dayEndHour) }}:00-{{ pad2(settings.dayStartHour) }}:00</text>
+    </view>
+
     <!-- 白天设置 -->
     <view class="section">
       <view class="section-header">
         <text class="section-title">白天</text>
-        <text class="section-desc">早上6点-晚上18点</text>
+        <text class="section-desc">每隔 {{ settings.dayInterval }} 小时</text>
       </view>
       <view class="number-picker-container">
         <scroll-view class="number-picker" scroll-x>
@@ -95,7 +135,7 @@
     <view class="section">
       <view class="section-header">
         <text class="section-title">晚上</text>
-        <text class="section-desc">晚上18点-早上06点</text>
+        <text class="section-desc">每隔 {{ settings.nightInterval }} 小时</text>
       </view>
       <view class="number-picker-container">
         <scroll-view class="number-picker" scroll-x>
@@ -235,6 +275,7 @@ export default {
       nextFeedingTimestampMs: null,
       dayNumbers: [1, 2, 3, 4, 5],
       nightNumbers: [3, 4, 5, 6, 7],
+      hourNumbers: Array.from({ length: 24 }, (_, i) => i),
       advanceNumbers: [5, 10, 15, 20, 30],
       dirty: false,
       saving: false,
@@ -440,6 +481,38 @@ export default {
       if (!this.canEdit) return
       this.dirty = true
     },
+
+    pad2(n) {
+      const v = Number(n)
+      if (!Number.isFinite(v)) return '--'
+      return String(Math.max(0, Math.min(23, v))).padStart(2, '0')
+    },
+
+    selectDayStartHour(h) {
+      if (!this.guardEdit()) return
+      const v = Number(h)
+      const end = Number(this.settings.dayEndHour)
+      if (!Number.isFinite(v)) return
+      if (Number.isFinite(end) && v >= end) {
+        uni.showToast({ title: '白天开始需早于白天结束', icon: 'none' })
+        return
+      }
+      this.settings.dayStartHour = Math.max(0, Math.min(23, v))
+      this.markDirty()
+    },
+
+    selectDayEndHour(h) {
+      if (!this.guardEdit()) return
+      const v = Number(h)
+      const start = Number(this.settings.dayStartHour)
+      if (!Number.isFinite(v)) return
+      if (Number.isFinite(start) && v <= start) {
+        uni.showToast({ title: '白天结束需晚于白天开始', icon: 'none' })
+        return
+      }
+      this.settings.dayEndHour = Math.max(0, Math.min(23, v))
+      this.markDirty()
+    },
     
     selectDayInterval(num) {
       if (!this.guardEdit()) return
@@ -636,6 +709,24 @@ export default {
 .section-desc {
   font-size: 14px;
   color: var(--nb-muted);
+}
+
+.range-row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.range-col {
+  width: 100%;
+}
+
+.range-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(var(--nb-ink-rgb), 0.70);
+  margin-bottom: 10px;
 }
 
 .number-picker-container {

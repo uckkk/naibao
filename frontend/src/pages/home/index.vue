@@ -154,7 +154,7 @@
 
         <view class="focus-card">
           <FeedingTimeline24
-            :marks="todayTimelineMarks"
+            :marks="homeTimelineMarks"
             :selectedKey="selectedTimelineKey"
             :nowMs="nowTickMs"
             :nextMs="nextFeedingTimestampMs"
@@ -730,7 +730,15 @@ import { formatZodiacText } from '@/utils/zodiac'
     },
 
     homeStatusText() {
-      if (this.todayCount <= 0) return '今天还没记录'
+      if (this.todayCount <= 0) {
+        const standard = Number(this.todayTargetMl || 0)
+        const expected = Number(this.expectedNowMl || 0)
+        if (!Number.isFinite(standard) || standard <= 0) return '今天还没记录'
+        const ratio = standard > 0 ? expected / standard : 0
+        if (ratio >= 0.75) return '今天还没记录（警报）'
+        if (ratio >= 0.55) return '今天还没记录（偏晚）'
+        return '今天还没记录'
+      }
 
       const interval = this.getIntervalInsight()
       if (interval?.status === 'overdue') return '该喂奶了'
@@ -756,8 +764,16 @@ import { formatZodiacText } from '@/utils/zodiac'
     },
 
     insightLevel() {
-      // 没有任何记录时，不做“优/差”判断，先引导记录，避免制造焦虑。
-      if (this.todayCount <= 0) return 'unknown'
+      // 没有任何记录时：早期不制造焦虑；但如果已经到傍晚仍为 0，则给出醒目的红色信号。
+      if (this.todayCount <= 0) {
+        const standard = Number(this.todayTargetMl || 0)
+        const expected = Number(this.expectedNowMl || 0)
+        if (!Number.isFinite(standard) || standard <= 0) return 'unknown'
+        const ratio = standard > 0 ? expected / standard : 0
+        if (ratio >= 0.75) return 'alert'
+        if (ratio >= 0.55) return 'attention'
+        return 'unknown'
+      }
 
       const feedingStatus = this.feedingStatusForHome()
       const interval = this.getIntervalInsight()
@@ -969,6 +985,68 @@ import { formatZodiacText } from '@/utils/zodiac'
       const t = this.formatClockText(ms)
       if (!t || t === '--:--') return ''
       return amountText ? `${t} · ${amountText}` : t
+    },
+
+    // 时间轴：预估“今天后续应喂时间点”（辅助规划睡眠）
+    // - 仅在今日已有记录时展示（避免“未记录但已喂”的误判）
+    // - 预估点只做视觉辅助，不可点击/不参与统计
+    todayPlanTimelineMarks() {
+      const list = Array.isArray(this.todayFeedings) ? this.todayFeedings : []
+      if (list.length <= 0) return []
+
+      const fs = this.feedingSettings || null
+      const dayStart = Number(fs?.day_start_hour ?? 6)
+      const dayEnd = Number(fs?.day_end_hour ?? 18)
+      const dayInt = Number(fs?.day_interval ?? 3)
+      const nightInt = Number(fs?.night_interval ?? 5)
+
+      const safeDayStart = Number.isFinite(dayStart) ? Math.max(0, Math.min(23, dayStart)) : 6
+      const safeDayEnd = Number.isFinite(dayEnd) ? Math.max(0, Math.min(23, dayEnd)) : 18
+      const safeDayInt = Number.isFinite(dayInt) && dayInt > 0 ? dayInt : 3
+      const safeNightInt = Number.isFinite(nightInt) && nightInt > 0 ? nightInt : 5
+
+      const base = Number(this.nextFeedingTimestampMs || 0)
+      if (!Number.isFinite(base) || base <= 0) return []
+
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const now = new Date(nowMs)
+      if (Number.isNaN(now.getTime())) return []
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime()
+      const end = start + 24 * 60 * 60 * 1000
+
+      // 只画“未来”预估点：避免和已记录点混在一起造成误读
+      let t = Math.max(base, nowMs)
+      if (t < start || t >= end) return []
+
+      const marks = []
+      const maxMarks = 12
+      let guard = 0
+      while (t < end && guard < maxMarks) {
+        const d = new Date(t)
+        if (Number.isNaN(d.getTime())) break
+        const minutes = d.getHours() * 60 + d.getMinutes()
+        const leftPercent = Math.max(0, Math.min(100, (Number(minutes) / 1440) * 100))
+        marks.push({
+          key: `p-${t}`,
+          kind: 'plan',
+          leftPercent: leftPercent.toFixed(2),
+        })
+
+        const hh = d.getHours()
+        const interval = hh >= safeDayStart && hh < safeDayEnd ? safeDayInt : safeNightInt
+        const next = t + interval * 60 * 60 * 1000
+        if (!Number.isFinite(next) || next <= t) break
+        t = next
+        guard++
+      }
+
+      return marks
+    },
+
+    homeTimelineMarks() {
+      const real = Array.isArray(this.todayTimelineMarks) ? this.todayTimelineMarks : []
+      const plan = Array.isArray(this.todayPlanTimelineMarks) ? this.todayPlanTimelineMarks : []
+      return plan.length ? real.concat(plan) : real
     },
 
     todayTimelineMarks() {

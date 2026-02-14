@@ -34,10 +34,14 @@
       >
         <view
           class="ft24-dot"
-          :class="{ active: selectedKey === String(m.key), latest: !!m.isLatest }"
+          :class="{ active: selectedKey === String(m.key), latest: !!m.isLatest, plan: m.kind === 'plan' }"
           @click.stop="handleMarkTap(m)"
         ></view>
-        <view v-if="Number(m.count || 0) > 1" class="ft24-badge" @click.stop="handleMarkTap(m)">
+        <view
+          v-if="m.kind !== 'plan' && Number(m.count || 0) > 1"
+          class="ft24-badge"
+          @click.stop="handleMarkTap(m)"
+        >
           <text class="ft24-badge-text">{{ Number(m.count || 0) }}</text>
         </view>
       </view>
@@ -78,6 +82,10 @@
         <view class="ft24-legend-item">
           <view class="ft24-legend-dot hollow"></view>
           <text class="ft24-legend-label">下次</text>
+        </view>
+        <view v-if="hasPlanMarks" class="ft24-legend-item">
+          <view class="ft24-legend-dot plan"></view>
+          <text class="ft24-legend-label">预估</text>
         </view>
         <view class="ft24-legend-item">
           <view class="ft24-legend-now">
@@ -140,6 +148,7 @@ export default {
           key: m?.key != null ? String(m.key) : '',
           leftPercent: clampPct(m?.leftPercent),
           count: Number(m?.count || 0),
+          kind: String(m?.kind || ''),
         }))
         .filter((m) => m.key && m.leftPercent !== '')
 
@@ -164,7 +173,8 @@ export default {
         laneLastLeft[lane] = left
 
         const isSelected = selected && String(m.key) === selected
-        const zIndex = 2
+        const baseZ = m.kind === 'plan' ? 1 : 2
+        const zIndex = baseZ
           + (isSelected ? 10 : 0)
           + (m.isLatest ? 6 : 0)
           + (lane === 1 ? 2 : lane === 2 ? 1 : 0)
@@ -191,6 +201,9 @@ export default {
     metaVisible() {
       return !!(this.summaryText || this.latestText)
     },
+    hasPlanMarks() {
+      return (this.safeMarks || []).some((m) => String(m?.kind || '') === 'plan')
+    },
   },
   created() {
     if (!this.showLegendOnce) return
@@ -207,6 +220,7 @@ export default {
     },
     handleMarkTap(m) {
       if (!m || !m.key) return
+      if (String(m.kind || '') === 'plan') return
       this.$emit('select', String(m.key))
     },
     closeLegend() {
@@ -321,6 +335,15 @@ export default {
 .ft24-dot.next {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(27, 26, 23, 0.42);
+}
+
+.ft24-dot.plan {
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.80);
+  border-color: rgba(27, 26, 23, 0.22);
+  box-shadow: none;
+  pointer-events: none;
 }
 
 .ft24-badge {
@@ -511,6 +534,11 @@ export default {
 .ft24-legend-dot.hollow {
   background: rgba(255, 255, 255, 0.92);
   border: 2px solid rgba(27, 26, 23, 0.42);
+}
+
+.ft24-legend-dot.plan {
+  background: rgba(255, 255, 255, 0.80);
+  border: 2px solid rgba(27, 26, 23, 0.22);
 }
 
 .ft24-legend-now {
