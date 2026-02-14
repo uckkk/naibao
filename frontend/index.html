@@ -7,7 +7,8 @@
   <meta name="theme-color" content="#FFFAF2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="奶宝">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <!-- iOS 主屏幕 WebApp：default 会给一条白色状态栏背景；black-translucent 让页面背景“顶到最上面”。 -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>奶宝</title>
   <!-- iOS/Safari 对主屏幕图标缓存很激进：加版本号方便后续替换 icon。 -->
   <link rel="manifest" href="/static/manifest.webmanifest?v=20260214">
@@ -19,6 +20,8 @@
       height: 100%;
       /* 给浏览器/安全区兜底：背景从顶部铺满，避免出现白底“标题栏”观感。 */
       background:
+        /* 顶部轻压暗：配合 iOS 主屏幕 black-translucent 状态栏，提升白色状态栏图标可读性 */
+        linear-gradient(180deg, rgba(27, 26, 23, 0.12) 0%, rgba(27, 26, 23, 0) 140px),
         radial-gradient(1200px 600px at 20% -10%, rgba(255, 216, 136, 0.35), rgba(255, 216, 136, 0) 60%),
         radial-gradient(900px 500px at 90% 0%, rgba(255, 155, 92, 0.22), rgba(255, 155, 92, 0) 55%),
         #fffaf2;

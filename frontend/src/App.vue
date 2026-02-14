@@ -59,6 +59,8 @@ export default {
 page {
   /* 轻纹理背景：H5 友好，低成本提升质感 */
   background:
+    /* 顶部轻压暗：配合 iOS 主屏幕 black-translucent 状态栏，提升白色状态栏图标可读性 */
+    linear-gradient(180deg, rgba(27, 26, 23, 0.12) 0%, rgba(27, 26, 23, 0) 140px),
     radial-gradient(1200px 600px at 20% -10%, rgba(255, 216, 136, 0.35), rgba(255, 216, 136, 0) 60%),
     radial-gradient(900px 500px at 90% 0%, rgba(255, 155, 92, 0.22), rgba(255, 155, 92, 0) 55%),
     #fffaf2;

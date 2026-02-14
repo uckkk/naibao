@@ -135,8 +135,24 @@
               距上次喂奶已过去 {{ sinceLastDurationHMText }}<text v-if="lastFeedingClockText">（上次 {{ lastFeedingClockText }}）</text>
             </text>
 
+            <!-- 健康信号：收敛但醒目（alert/attention 显示强结论 + 单一 CTA） -->
+            <view
+              v-if="homeSignalBannerVisible"
+              class="health-banner"
+              :class="`lv-${insightLevel}`"
+              @click="openExplainModal"
+            >
+              <view class="health-banner-main">
+                <text class="health-banner-title">{{ homeSignalTitle }}</text>
+                <text v-if="homeSignalDesc" class="health-banner-desc">{{ homeSignalDesc }}</text>
+              </view>
+              <view class="health-banner-cta" @click.stop="handleHomeSignalCta">
+                <text class="health-banner-cta-text">{{ homeSignalCtaText }}</text>
+              </view>
+            </view>
+
             <view class="hero-badges">
-              <view class="health-pill" :class="`lv-${insightLevel}`" @click="openExplainModal">
+              <view v-if="!homeSignalBannerVisible" class="health-pill" :class="`lv-${insightLevel}`" @click="openExplainModal">
                 <text class="health-pill-text">{{ homeStatusText }}</text>
               </view>
 
@@ -157,11 +173,24 @@
             :marks="homeTimelineMarks"
             :selectedKey="selectedTimelineKey"
             :nowMs="nowTickMs"
-            :nextMs="nextFeedingTimestampMs"
+            :nextMs="nextFeedingTimelineMs"
             :summaryText="timelineSummaryText"
             @open="openTodayModal"
             @select="handleHomeTimelineSelect"
           />
+
+          <!-- 预估清单：把“后续时间点”用一句话讲清楚，并给出唯一入口去调整（更线性）。 -->
+          <view
+            v-if="timelinePlanFootTitle"
+            class="timeline-plan"
+            @click.stop="goToFeedingSettings('')"
+          >
+            <view class="timeline-plan-left">
+              <text class="timeline-plan-title">{{ timelinePlanFootTitle }}</text>
+              <text v-if="timelinePlanFootSub" class="timeline-plan-sub">{{ timelinePlanFootSub }}</text>
+            </view>
+            <text class="timeline-plan-chev">调整 ›</text>
+          </view>
         </view>
       </view>
       </NbLoadable>
@@ -433,7 +462,7 @@
 	import api from '@/utils/api'
   import config from '@/utils/config.js'
 	import { useUserStore } from '@/stores/user'
-import { calcAgeInDays, formatBabyAgeText } from '@/utils/age'
+import { calcAgeInDays, diffYmd, formatBabyAgeText, parseBirthDateToLocal } from '@/utils/age'
 import { formatZodiacText } from '@/utils/zodiac'
   import { parseAgeRangeToStage } from '@/utils/formula_stage'
   import { applyCustomSpecIfMissing, buildCustomFormulaSpecKey, readCustomFormulaSpec } from '@/utils/custom_formula_spec'
@@ -713,6 +742,16 @@ import { formatZodiacText } from '@/utils/zodiac'
       return Number.isFinite(nowMs) && nowMs > 0 && Number.isFinite(nextMs) && nextMs > 0
     },
 
+    // 时间轴上的“下次”点位：若已超时，则贴近“现在”显示（更直观），避免 hollow dot 落在过去造成误读。
+    nextFeedingTimelineMs() {
+      const nextMs = Number(this.nextFeedingTimestampMs || 0)
+      if (!Number.isFinite(nextMs) || nextMs <= 0) return 0
+      const nowMs = Number(this.nowTickMs || Date.now())
+      if (!Number.isFinite(nowMs) || nowMs <= 0) return nextMs
+      if (nextMs < nowMs) return nowMs
+      return nextMs
+    },
+
     nextCountdownHMText() {
       if (!this.hasNextFeeding) return '--:--'
       const nowMs = Number(this.nowTickMs || Date.now())
@@ -753,6 +792,76 @@ import { formatZodiacText } from '@/utils/zodiac'
       if (feedingStatus === 'low') return '今日偏少'
       if (feedingStatus === 'high') return '今日偏多'
       return '节奏正常'
+    },
+
+    // 首页健康信号（强结论 + 单一 CTA）：仅在需要用户立刻决策时出现，避免常驻制造焦虑。
+    homeSignalBannerVisible() {
+      const lv = String(this.insightLevel || '')
+      return lv === 'alert' || lv === 'attention'
+    },
+
+    homeSignalTitle() {
+      const lv = String(this.insightLevel || '')
+      const interval = this.getIntervalInsight()
+
+      if (this.todayCount <= 0) {
+        if (lv === 'alert') return '警报：今天还没喂奶'
+        if (lv === 'attention') return '提醒：今天还没喂奶'
+        return '今天还没喂奶'
+      }
+
+      if (interval?.status === 'overdue') {
+        return lv === 'alert' ? '警报：该喂奶了' : '提醒：该喂奶了'
+      }
+
+      if (interval?.status === 'frequent') {
+        if (interval.severity === 'severe') return '警报：记录过密'
+        return '提醒：间隔偏短'
+      }
+
+      const feedingStatus = this.feedingStatusForHome()
+      if (feedingStatus === 'low') return '提醒：今日偏少'
+      if (feedingStatus === 'high') return '提醒：今日偏多'
+      return this.homeStatusText
+    },
+
+    homeSignalDesc() {
+      if (!this.homeSignalBannerVisible) return ''
+
+      if (this.todayCount <= 0) {
+        const target = Number(this.todayTargetMl || 0)
+        const expected = Number(this.expectedNowMl || 0)
+        const ref = String(this.recommendedAmount?.age_reference || '').trim()
+        const refText = ref ? `参考 ${ref}` : (target > 0 ? `参考 ${target}ml/天` : '')
+        if (refText && expected > 0) return `${refText} · 此刻约 ${expected}ml`
+        return refText
+      }
+
+      const interval = this.getIntervalInsight()
+      if (interval?.text) return String(interval.text || '')
+
+      const target = Number(this.todayTargetMl || 0)
+      const consumed = Number(this.todayConsumedMl || 0)
+      if (target > 0) return `今天 ${consumed}ml / ${target}ml`
+      return ''
+    },
+
+    homeSignalCtaText() {
+      if (!this.homeSignalBannerVisible) return ''
+      if (this.todayCount <= 0) return '立即记录'
+      const interval = this.getIntervalInsight()
+      if (interval?.status === 'overdue') return '现在投喂'
+      if (interval?.status === 'frequent' && interval.severity === 'severe') return '检查/撤销'
+      return '查看建议'
+    },
+
+    homeSignalCtaAction() {
+      if (!this.homeSignalBannerVisible) return ''
+      if (this.todayCount <= 0) return 'record'
+      const interval = this.getIntervalInsight()
+      if (interval?.status === 'overdue') return 'record'
+      if (interval?.status === 'frequent' && interval.severity === 'severe') return 'today'
+      return 'explain'
     },
 
     nextSuggestedAmount() {
@@ -990,23 +1099,9 @@ import { formatZodiacText } from '@/utils/zodiac'
     // 时间轴：预估“今天后续应喂时间点”（辅助规划睡眠）
     // - 仅在今日已有记录时展示（避免“未记录但已喂”的误判）
     // - 预估点只做视觉辅助，不可点击/不参与统计
-    todayPlanTimelineMarks() {
+    todayPlanTimesMs() {
       const list = Array.isArray(this.todayFeedings) ? this.todayFeedings : []
       if (list.length <= 0) return []
-
-      const fs = this.feedingSettings || null
-      const dayStart = Number(fs?.day_start_hour ?? 6)
-      const dayEnd = Number(fs?.day_end_hour ?? 18)
-      const dayInt = Number(fs?.day_interval ?? 3)
-      const nightInt = Number(fs?.night_interval ?? 5)
-
-      const safeDayStart = Number.isFinite(dayStart) ? Math.max(0, Math.min(23, dayStart)) : 6
-      const safeDayEnd = Number.isFinite(dayEnd) ? Math.max(0, Math.min(23, dayEnd)) : 18
-      const safeDayInt = Number.isFinite(dayInt) && dayInt > 0 ? dayInt : 3
-      const safeNightInt = Number.isFinite(nightInt) && nightInt > 0 ? nightInt : 5
-
-      const base = Number(this.nextFeedingTimestampMs || 0)
-      if (!Number.isFinite(base) || base <= 0) return []
 
       const nowMs = Number(this.nowTickMs || Date.now())
       const now = new Date(nowMs)
@@ -1014,16 +1109,85 @@ import { formatZodiacText } from '@/utils/zodiac'
       const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime()
       const end = start + 24 * 60 * 60 * 1000
 
-      // 只画“未来”预估点：避免和已记录点混在一起造成误读
-      let t = Math.max(base, nowMs)
-      if (t < start || t >= end) return []
+      // seed = 时间轴上的“下次喂奶”位置；若已超时则贴近“现在”，后续预估从此开始递推。
+      const lastMs = Number(this.lastFeedingTimestampMs || 0)
+      let seed = Number(this.nextFeedingTimelineMs || 0)
+      if (!Number.isFinite(seed) || seed <= 0) {
+        const calc = this.calcNextFeedingTimeMs(nowMs, lastMs)
+        seed = Number.isFinite(calc) && calc > 0 ? calc : 0
+      }
+
+      if (!Number.isFinite(seed) || seed <= 0) return []
+      if (seed < start || seed >= end) return []
+
+      const times = []
+      let t = seed
+      const maxTimes = 16
+      let guard = 0
+      while (t < end && guard < maxTimes) {
+        times.push(t)
+        const next = this.calcNextFeedingTimeMs(t, t)
+        if (!Number.isFinite(next) || next <= t) break
+        t = next
+        guard++
+      }
+
+      // 时间轴是 0-24：这里只返回“今天内”的时间点；跨天用首页的“明天/后天”提示即可。
+      return times.filter((ms) => Number.isFinite(ms) && ms >= start && ms < end)
+    },
+
+    timelinePlanFootTitle() {
+      const times = Array.isArray(this.todayPlanTimesMs) ? this.todayPlanTimesMs : []
+      if (times.length <= 0) return ''
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const future = times.filter((ms) => Number.isFinite(ms) && ms >= nowMs - 60 * 1000)
+      if (future.length <= 0) return ''
+      const s = this.getFeedingSettingsSnapshot()
+      const dayStart = Number(s.dayStartHour)
+      const dayEnd = Number(s.dayEndHour)
+      const nightCount = future.filter((ms) => {
+        const d = new Date(ms)
+        if (Number.isNaN(d.getTime())) return false
+        const h = d.getHours()
+        return !(h >= dayStart && h < dayEnd)
+      }).length
+      const total = future.length
+      if (nightCount > 0) return `预估还要 ${total} 次（夜间 ${nightCount} 次）`
+      return `预估还要 ${total} 次`
+    },
+
+    timelinePlanFootSub() {
+      const times = Array.isArray(this.todayPlanTimesMs) ? this.todayPlanTimesMs : []
+      if (times.length <= 0) return ''
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const future = times.filter((ms) => Number.isFinite(ms) && ms >= nowMs - 60 * 1000)
+      if (future.length <= 0) return ''
+      const show = future
+        .slice(0, 4)
+        .map((ms) => this.formatClockText(ms))
+        .filter((t) => t && t !== '--:--')
+      if (show.length <= 0) return ''
+      const suffix = future.length > show.length ? '…' : ''
+      return `${show.join('、')}${suffix}`
+    },
+
+    todayPlanTimelineMarks() {
+      const times = Array.isArray(this.todayPlanTimesMs) ? this.todayPlanTimesMs : []
+      // 预估点不包含“下次喂奶”（已用 hollow dot 表示），避免重叠误读
+      if (times.length <= 1) return []
+
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const now = new Date(nowMs)
+      if (Number.isNaN(now.getTime())) return []
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime()
+      const end = start + 24 * 60 * 60 * 1000
 
       const marks = []
-      const maxMarks = 12
-      let guard = 0
-      while (t < end && guard < maxMarks) {
+      for (const t of times.slice(1)) {
+        if (t < nowMs - 60 * 1000) continue
+        if (!Number.isFinite(t) || t < start || t >= end) continue
         const d = new Date(t)
-        if (Number.isNaN(d.getTime())) break
+        if (Number.isNaN(d.getTime())) continue
         const minutes = d.getHours() * 60 + d.getMinutes()
         const leftPercent = Math.max(0, Math.min(100, (Number(minutes) / 1440) * 100))
         marks.push({
@@ -1031,13 +1195,6 @@ import { formatZodiacText } from '@/utils/zodiac'
           kind: 'plan',
           leftPercent: leftPercent.toFixed(2),
         })
-
-        const hh = d.getHours()
-        const interval = hh >= safeDayStart && hh < safeDayEnd ? safeDayInt : safeNightInt
-        const next = t + interval * 60 * 60 * 1000
-        if (!Number.isFinite(next) || next <= t) break
-        t = next
-        guard++
       }
 
       return marks
@@ -2641,6 +2798,19 @@ import { formatZodiacText } from '@/utils/zodiac'
       this.showExplainModal = true
     },
 
+    async handleHomeSignalCta() {
+      const act = String(this.homeSignalCtaAction || '')
+      if (act === 'record') {
+        await this.recordNextSuggested()
+        return
+      }
+      if (act === 'today') {
+        await this.openTodayModal()
+        return
+      }
+      this.openExplainModal()
+    },
+
     closeExplainModal() {
       this.showExplainModal = false
     },
@@ -3263,6 +3433,59 @@ import { formatZodiacText } from '@/utils/zodiac'
   box-sizing: border-box;
 }
 
+.timeline-plan {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--nb-line);
+  background: rgba(var(--nb-ink-rgb), 0.04);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.timeline-plan:active {
+  transform: scale(0.995);
+}
+
+.timeline-plan-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-plan-title {
+  font-size: 13px;
+  font-weight: 900;
+  color: rgba(var(--nb-ink-rgb), 0.86);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline-plan-sub {
+  font-size: 12px;
+  color: rgba(var(--nb-ink-rgb), 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-plan-chev {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(var(--nb-ink-rgb), 0.50);
+  white-space: nowrap;
+}
+
 .hero {
   text-align: center;
 }
@@ -3355,6 +3578,87 @@ import { formatZodiacText } from '@/utils/zodiac'
   font-size: 13px;
   font-weight: 700;
   color: rgba(var(--nb-ink-rgb), 0.70);
+}
+
+.health-banner {
+  margin-top: 12px;
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid var(--nb-border-2);
+  background: var(--nb-fill);
+  padding: 10px 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  box-sizing: border-box;
+  user-select: none;
+  text-align: left;
+}
+
+.health-banner:active {
+  transform: scale(0.995);
+}
+
+.health-banner-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.health-banner-title {
+  font-size: 13px;
+  font-weight: 1000;
+  color: rgba(var(--nb-ink-rgb), 0.90);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.health-banner-desc {
+  font-size: 12px;
+  color: rgba(var(--nb-ink-rgb), 0.66);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.health-banner-cta {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--nb-ink-rgb), 0.12);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 24px rgba(var(--nb-ink-rgb), 0.08);
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.health-banner-cta:active {
+  transform: scale(0.99);
+}
+
+.health-banner-cta-text {
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(var(--nb-ink-rgb), 0.82);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.health-banner.lv-attention .health-banner-title,
+.health-banner.lv-attention .health-banner-cta-text {
+  color: rgba(181, 83, 29, 0.95);
+}
+
+.health-banner.lv-alert .health-banner-title,
+.health-banner.lv-alert .health-banner-cta-text {
+  color: var(--nb-danger);
 }
 
 .hero-badges {
