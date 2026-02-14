@@ -97,18 +97,21 @@
               <NbSkeleton :w="64" :h="14" :radius="7" />
               <NbSkeleton :w="120" :h="12" :radius="6" />
             </view>
-            <view class="days-table">
-              <view class="days-row days-row-head">
-                <NbSkeleton :w="42" :h="12" :radius="6" />
-                <NbSkeleton :w="42" :h="12" :radius="6" />
-                <NbSkeleton :w="42" :h="12" :radius="6" />
-                <NbSkeleton :w="92" :h="12" :radius="6" />
-              </view>
-              <view v-for="i in 5" :key="i" class="days-row">
-                <NbSkeleton :w="42" :h="12" :radius="6" />
-                <NbSkeleton :w="52" :h="12" :radius="6" />
-                <NbSkeleton :w="30" :h="12" :radius="6" />
-                <NbSkeleton :w="110" :h="12" :radius="6" />
+            <view class="days-list">
+              <view v-for="i in 5" :key="i" class="day-cell">
+                <view class="day-left">
+                  <NbSkeleton :w="50" :h="12" :radius="6" />
+                  <NbSkeleton :w="36" :h="10" :radius="5" />
+                </view>
+                <view class="day-right">
+                  <view class="day-main">
+                    <NbSkeleton :w="8" :h="8" :radius="4" />
+                    <NbSkeleton :w="92" :h="14" :radius="7" />
+                    <NbSkeleton :w="44" :h="12" :radius="6" />
+                  </view>
+                  <NbSkeleton :w="140" :h="12" :radius="6" />
+                </view>
+                <NbSkeleton :w="10" :h="12" :radius="6" />
               </view>
             </view>
           </view>
@@ -136,27 +139,31 @@
         <view class="days-card">
           <view class="days-header">
             <text class="days-title">每日明细</text>
-            <text class="days-hint">点击复制单日数据</text>
+            <text class="days-hint">点一天复制</text>
           </view>
 
-          <view class="days-table">
-            <view class="days-row days-row-head">
-              <text class="col date">日期</text>
-              <text class="col amt">奶量</text>
-              <text class="col cnt">次数</text>
-              <text class="col wh">体重/身高</text>
-            </view>
-
+          <view class="days-list">
             <view
               v-for="d in report.days"
               :key="d.date"
-              class="days-row"
+              class="day-cell"
               @click="copyDay(d)"
             >
-              <text class="col date">{{ d.date.slice(5) }}</text>
-              <text class="col amt">{{ d.total_amount || 0 }}</text>
-              <text class="col cnt">{{ d.feedings_count || 0 }}</text>
-              <text class="col wh">{{ weightHeightText(d) }}</text>
+              <view class="day-left">
+                <text class="day-date">{{ formatDateMD(d.date) }}</text>
+                <text class="day-week">{{ formatWeekday(d.date) }}</text>
+              </view>
+
+              <view class="day-right">
+                <view class="day-main">
+                  <view class="day-dot" :class="{ zero: Number(d.total_amount || 0) <= 0 }"></view>
+                  <text class="day-amt">{{ d.total_amount || 0 }}ml</text>
+                  <text class="day-cnt">{{ d.feedings_count || 0 }}次</text>
+                </view>
+                <text class="day-sub">{{ weightHeightText(d) }}</text>
+              </view>
+
+              <text class="day-chev">›</text>
             </view>
           </view>
         </view>
@@ -225,6 +232,31 @@ export default {
       const m = String(date.getMonth() + 1).padStart(2, '0')
       const d = String(date.getDate()).padStart(2, '0')
       return `${y}-${m}-${d}`
+    },
+
+    parseDateOnly(dateStr) {
+      const s = String(dateStr || '').trim()
+      const m = s.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})/)
+      if (!m) return null
+      const y = Number(m[1])
+      const mo = Number(m[2])
+      const da = Number(m[3])
+      if (![y, mo, da].every((x) => Number.isFinite(x))) return null
+      const d = new Date(y, mo - 1, da, 0, 0, 0, 0)
+      return Number.isNaN(d.getTime()) ? null : d
+    },
+
+    formatDateMD(dateStr) {
+      const d = this.parseDateOnly(dateStr)
+      if (!d) return String(dateStr || '')
+      return `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+    },
+
+    formatWeekday(dateStr) {
+      const d = this.parseDateOnly(dateStr)
+      if (!d) return ''
+      const names = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+      return names[d.getDay()] || ''
     },
 
     setQuickRange(days) {
@@ -577,33 +609,98 @@ export default {
   color: var(--nb-muted);
 }
 
-.days-table {
-  padding: 0 10px 10px;
+.days-list {
+  padding: 0 10px 12px;
+  box-sizing: border-box;
 }
 
-.days-row {
+.day-cell {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  border-radius: 14px;
+  gap: 10px;
+  border-radius: 16px;
   padding: 10px 10px;
   margin-top: 8px;
   background: rgba(27, 26, 23, 0.03);
   border: 1px solid rgba(27, 26, 23, 0.06);
+  user-select: none;
 }
 
-.days-row-head {
-  background: rgba(247, 201, 72, 0.16);
-  border-color: rgba(247, 201, 72, 0.35);
-  margin-top: 0;
+.day-cell:active {
+  transform: scale(0.996);
 }
 
-.col {
+.day-left {
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.day-date {
+  font-size: 13px;
+  font-weight: 900;
+  color: rgba(var(--nb-ink-rgb), 0.82);
+}
+
+.day-week {
   font-size: 12px;
-  color: var(--nb-text);
+  color: rgba(var(--nb-ink-rgb), 0.50);
 }
 
-.col.date { width: 70px; }
-.col.amt  { width: 64px; text-align: right; }
-.col.cnt  { width: 56px; text-align: right; }
-.col.wh   { flex: 1; text-align: right; color: var(--nb-muted); }
+.day-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.day-main {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.day-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(247, 201, 72, 0.75);
+  flex: 0 0 8px;
+}
+
+.day-dot.zero {
+  background: rgba(27, 26, 23, 0.18);
+}
+
+.day-amt {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--nb-text);
+  white-space: nowrap;
+}
+
+.day-cnt {
+  font-size: 12px;
+  color: rgba(var(--nb-ink-rgb), 0.58);
+  white-space: nowrap;
+}
+
+.day-sub {
+  font-size: 12px;
+  color: var(--nb-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.day-chev {
+  font-size: 18px;
+  font-weight: 900;
+  color: rgba(var(--nb-ink-rgb), 0.30);
+  flex: none;
+}
 </style>

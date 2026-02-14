@@ -132,7 +132,7 @@
             </view>
 
             <text v-if="sinceLastDurationHMText" class="hero-meta-line">
-              距上次喂奶已过去 {{ sinceLastDurationHMText }}<text v-if="lastFeedingClockText">（上次 {{ lastFeedingClockText }}）</text>
+              距上次喂奶已过去 {{ sinceLastDurationHMText }}
             </text>
 
             <!-- 健康信号：收敛但醒目（alert/attention 显示强结论 + 单一 CTA） -->
@@ -146,9 +146,7 @@
                 <text class="health-banner-title">{{ homeSignalTitle }}</text>
                 <text v-if="homeSignalDesc" class="health-banner-desc">{{ homeSignalDesc }}</text>
               </view>
-              <view class="health-banner-cta" @click.stop="handleHomeSignalCta">
-                <text class="health-banner-cta-text">{{ homeSignalCtaText }}</text>
-              </view>
+              <text class="health-banner-chev" aria-hidden="true">›</text>
             </view>
 
             <view class="hero-badges">
@@ -183,11 +181,12 @@
           <view
             v-if="timelinePlanFootTitle"
             class="timeline-plan"
-            @click.stop="goToFeedingSettings('')"
+            @click.stop="goToFeedingSettings(timelinePlanFootFocus)"
           >
             <view class="timeline-plan-left">
               <text class="timeline-plan-title">{{ timelinePlanFootTitle }}</text>
               <text v-if="timelinePlanFootSub" class="timeline-plan-sub">{{ timelinePlanFootSub }}</text>
+              <text v-if="timelinePlanFootHint" class="timeline-plan-hint">{{ timelinePlanFootHint }}</text>
             </view>
             <text class="timeline-plan-chev">调整 ›</text>
           </view>
@@ -197,12 +196,12 @@
     </view>
     
     <!-- 投喂按钮 -->
-    <view class="feed-button-large" @click="recordNextSuggested">
-      <view v-if="weaningFeedBadgeText" class="feed-badge" :class="weaningAutoSide">
+    <view class="feed-button-large" @click="handleHomePrimaryAction">
+      <view v-if="homePrimaryAction === 'record' && weaningFeedBadgeText" class="feed-badge" :class="weaningAutoSide">
         <text class="feed-badge-text">{{ weaningFeedBadgeText }}</text>
       </view>
-      <text class="feed-button-text">{{ quickFeeding ? '记录中' : '投喂' }}</text>
-      <text v-if="!quickFeeding && nextSuggestedAmount > 0" class="feed-button-sub">{{ nextSuggestedAmount }}ml</text>
+      <text class="feed-button-text">{{ homePrimaryButtonText }}</text>
+      <text v-if="homePrimarySubText" class="feed-button-sub">{{ homePrimarySubText }}</text>
     </view>
 
     <!-- 撤销条：保存后 3 秒内可撤销 -->
@@ -313,12 +312,57 @@
             />
           </view>
 
+          <!-- 异常日原因提示 + 一键修复入口：不让用户猜“为什么为空/不对劲” -->
+          <view v-if="todayFixRows.length > 0 && todayCount <= 0" class="today-fix">
+            <view class="today-fix-head">
+              <text class="today-fix-title">需要处理</text>
+              <text class="today-fix-sub">修好后统计会更准</text>
+            </view>
+            <view
+              v-for="it in todayFixRows"
+              :key="it.key"
+              class="today-fix-row"
+              @click.stop="handleTodayFixRow(it)"
+            >
+              <view class="today-fix-left">
+                <view class="today-fix-dot" :class="`t-${it.tone || 'warn'}`" aria-hidden="true"></view>
+                <view class="today-fix-texts">
+                  <text class="today-fix-main">{{ it.title }}</text>
+                  <text v-if="it.desc" class="today-fix-desc">{{ it.desc }}</text>
+                </view>
+              </view>
+              <text class="today-fix-cta">{{ it.actionText }} ›</text>
+            </view>
+          </view>
+
           <view v-if="todayCount <= 0" class="today-modal-empty">
-            <text class="today-modal-empty-text">今天还没有记录</text>
-            <text class="today-modal-empty-sub">点下方“投喂”开始（误触可撤销）</text>
+            <text class="today-modal-empty-text">{{ todayEmptyTitle }}</text>
+            <text class="today-modal-empty-sub">{{ todayEmptySub }}</text>
           </view>
 
           <scroll-view v-else class="today-modal-list" scroll-y>
+            <view v-if="todayFixRows.length > 0" class="today-fix in-list">
+              <view class="today-fix-head">
+                <text class="today-fix-title">需要处理</text>
+                <text class="today-fix-sub">修好后统计会更准</text>
+              </view>
+              <view
+                v-for="it in todayFixRows"
+                :key="it.key"
+                class="today-fix-row"
+                @click.stop="handleTodayFixRow(it)"
+              >
+                <view class="today-fix-left">
+                  <view class="today-fix-dot" :class="`t-${it.tone || 'warn'}`" aria-hidden="true"></view>
+                  <view class="today-fix-texts">
+                    <text class="today-fix-main">{{ it.title }}</text>
+                    <text v-if="it.desc" class="today-fix-desc">{{ it.desc }}</text>
+                  </view>
+                </view>
+                <text class="today-fix-cta">{{ it.actionText }} ›</text>
+              </view>
+            </view>
+
             <view
               v-for="f in todayFeedings"
               :key="f.id"
@@ -452,6 +496,7 @@
 	      :cancelText="confirmSheetCancelText"
 	      :confirmVariant="confirmSheetVariant"
 	      :loading="confirmSheetLoading"
+        :showCancel="confirmSheetShowCancel"
 	      @confirm="handleConfirmSheetConfirm"
 	      @cancel="handleConfirmSheetCancel"
 	    />
@@ -491,6 +536,14 @@ import { formatZodiacText } from '@/utils/zodiac'
       pageLoading: false,
       errorText: '',
       todayFeedings: [],
+      futureFeedings: [],
+      invalidTimeFeedings: [],
+      feedingsMeta: {
+        rawCount: 0,
+        validCount: 0,
+        futureCount: 0,
+        invalidTimeCount: 0,
+      },
       stats: {},
       familyMembers: [],
       selectedFormula: null,
@@ -581,6 +634,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 	      confirmSheetCancelText: '取消',
 	      confirmSheetVariant: 'primary', // primary | danger
 	      confirmSheetLoading: false,
+        confirmSheetShowCancel: true,
 	      confirmSheetResolver: null,
 	    }
 	  },
@@ -880,12 +934,9 @@ import { formatZodiacText } from '@/utils/zodiac'
 
     homeStatusText() {
       if (this.todayCount <= 0) {
-        const standard = Number(this.todayTargetMl || 0)
-        const expected = Number(this.expectedNowMl || 0)
-        if (!Number.isFinite(standard) || standard <= 0) return '今天还没记录'
-        const ratio = standard > 0 ? expected / standard : 0
-        if (ratio >= 0.75) return '今天还没记录（警报）'
-        if (ratio >= 0.55) return '今天还没记录（偏晚）'
+        const lv = String(this.emptyDayLevel || 'unknown')
+        if (lv === 'alert') return '今天还没记录（警报）'
+        if (lv === 'attention') return '今天还没记录（偏晚）'
         return '今天还没记录'
       }
 
@@ -974,6 +1025,40 @@ import { formatZodiacText } from '@/utils/zodiac'
       return 'explain'
     },
 
+    // 首页唯一“主动作”：把处理路径收敛到一个按钮上（更线性、更像系统）。
+    homePrimaryAction() {
+      if (this.homeSignalBannerVisible) {
+        const act = String(this.homeSignalCtaAction || '')
+        if (act === 'record' || act === 'today' || act === 'explain') return act
+      }
+      return 'record'
+    },
+
+    homePrimaryButtonText() {
+      const act = String(this.homePrimaryAction || 'record')
+      if (act === 'record') {
+        if (this.quickFeeding) return '记录中'
+        // 有强信号时，用更明确的动词（立即记录/现在投喂）
+        if (this.homeSignalBannerVisible) {
+          const t = String(this.homeSignalCtaText || '').trim()
+          if (t) return t
+        }
+        return '投喂'
+      }
+      if (act === 'today') return '检查/撤销'
+      if (act === 'explain') return '查看建议'
+      return '投喂'
+    },
+
+    homePrimarySubText() {
+      const act = String(this.homePrimaryAction || 'record')
+      if (act !== 'record') return ''
+      if (this.quickFeeding) return ''
+      const n = Number(this.nextSuggestedAmount || 0)
+      if (!Number.isFinite(n) || n <= 0) return ''
+      return `${Math.round(n)}ml`
+    },
+
     nextSuggestedAmount() {
       const base = Number(this.recommendedAmount?.recommended || 0)
       if (!Number.isFinite(base) || base <= 0) return 0
@@ -982,16 +1067,35 @@ import { formatZodiacText } from '@/utils/zodiac'
       return Number.isFinite(v) ? v : base
     },
 
+    // 0 次喂奶的“强信号”口径：
+    // - 告警阈值跟随用户设置的“白天结束/睡觉时间”，避免固定 18 点造成误报/过早打扰
+    // - 在白天结束前 5 小时给一个温和提醒；到白天结束仍为 0 次则红色告警
+    emptyDayLevel() {
+      if (this.todayCount > 0) return ''
+      const standard = Number(this.todayTargetMl || 0)
+      if (!Number.isFinite(standard) || standard <= 0) return 'unknown'
+
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const now = new Date(nowMs)
+      if (Number.isNaN(now.getTime())) return 'unknown'
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime()
+      const dayMs = 24 * 60 * 60 * 1000
+      const progress = dayMs > 0 ? Math.max(0, Math.min(1, (nowMs - start) / dayMs)) : 0
+
+      const s = this.getFeedingSettingsSnapshot()
+      const endHour = Math.max(0, Math.min(23, Number(s.dayEndHour)))
+      const alertThreshold = endHour / 24
+      const attentionThreshold = Math.max(0, (endHour - 5) / 24)
+
+      if (progress >= alertThreshold) return 'alert'
+      if (progress >= attentionThreshold) return 'attention'
+      return 'unknown'
+    },
+
     insightLevel() {
-      // 没有任何记录时：早期不制造焦虑；但如果已经到傍晚仍为 0，则给出醒目的红色信号。
       if (this.todayCount <= 0) {
-        const standard = Number(this.todayTargetMl || 0)
-        const expected = Number(this.expectedNowMl || 0)
-        if (!Number.isFinite(standard) || standard <= 0) return 'unknown'
-        const ratio = standard > 0 ? expected / standard : 0
-        if (ratio >= 0.75) return 'alert'
-        if (ratio >= 0.55) return 'attention'
-        return 'unknown'
+        // 没有任何记录时：早期不制造焦虑；但如果已经到“白天结束/睡觉时间”仍为 0，则给出红色告警。
+        return this.emptyDayLevel || 'unknown'
       }
 
       const feedingStatus = this.feedingStatusForHome()
@@ -1188,6 +1292,99 @@ import { formatZodiacText } from '@/utils/zodiac'
       return `${this.todayCount}次 · ${this.stats?.today_amount || 0}ml`
     },
 
+    todayStatsMismatch() {
+      const n = Number(this.todayCount || 0)
+      const amt = Number(this.stats?.today_amount || 0)
+      if (!Number.isFinite(n) || !Number.isFinite(amt)) return false
+      if (n <= 0 && amt > 0) return true
+      if (n > 0 && amt <= 0) return true
+      return false
+    },
+
+    todayEmptyTitle() {
+      if (this.todayStatsMismatch) return '今天列表为空，但统计有数据'
+      return '今天还没有记录'
+    },
+
+    todayEmptySub() {
+      if (this.todayStatsMismatch) return '可能是设备时间/时区不一致；先点上方“刷新数据”，再检查系统时间'
+      return '点下方“投喂”开始（误触可撤销）'
+    },
+
+    todayFixRows() {
+      const rows = []
+
+      if (this.todayStatsMismatch) {
+        rows.push({
+          key: 'refresh_stats_mismatch',
+          tone: 'warn',
+          title: '刷新数据',
+          desc: '修复“列表为空/统计不一致”等偶发问题',
+          actionText: '刷新',
+          action: 'refresh_today',
+        })
+      }
+
+      const interval = this.getIntervalInsight()
+      if (!this.undoVisible && interval?.status === 'frequent' && interval.severity === 'severe') {
+        const last = Array.isArray(this.recentFeedings) ? this.recentFeedings[0] : null
+        if (last && last.id) {
+          const can = this.canEditFeeding(last)
+          const burst = interval?.detail?.burst_10m
+          const c = Number(burst?.count || 0)
+          const t = Number(burst?.total_amount || 0)
+          const extra = (c >= 2 && t > 0) ? `10分钟内${c}次共${t}ml` : ''
+          rows.push({
+            key: 'undo_last',
+            tone: can ? 'danger' : 'warn',
+            title: can ? '可能误触：记录过密，先撤销最近一次' : '记录过密：需要管理员处理',
+            desc: extra || '短时间多次记录会影响倒计时/建议',
+            actionText: can ? '撤销' : '查看',
+            action: can ? 'undo_last' : 'open_today',
+          })
+        }
+      }
+
+      const future = Array.isArray(this.futureFeedings) ? this.futureFeedings : []
+      const invalid = Array.isArray(this.invalidTimeFeedings) ? this.invalidTimeFeedings : []
+
+      const maxFixRecords = 6
+      for (const f of future.slice(0, maxFixRecords)) {
+        const can = this.canEditFeeding(f)
+        const ms = this.parseTimeToMs(f?.feeding_time)
+        const dt = this.formatMDHMText(ms)
+        const amount = Number(f?.amount || 0)
+        const amountText = Number.isFinite(amount) && amount > 0 ? `${Math.round(amount)}ml` : '--ml'
+        rows.push({
+          key: `future_${f.id}`,
+          tone: 'warn',
+          title: `未来记录：${dt} · ${amountText}`,
+          desc: '已自动忽略；请修正时间到“现在或过去”',
+          actionText: can ? '修正' : '查看',
+          action: can ? 'edit_feeding' : 'view_feeding',
+          feeding: f,
+        })
+      }
+
+      for (const f of invalid.slice(0, Math.max(0, maxFixRecords - future.length))) {
+        const can = this.canEditFeeding(f)
+        const raw = String(f?.__invalid_time_raw || f?.feeding_time || '').trim()
+        const amount = Number(f?.amount || 0)
+        const amountText = Number.isFinite(amount) && amount > 0 ? `${Math.round(amount)}ml` : '--ml'
+        rows.push({
+          key: `invalid_time_${f.id}`,
+          tone: 'warn',
+          title: `时间异常：${amountText}`,
+          desc: raw ? `原始时间：${raw}` : '记录时间无法识别，已忽略',
+          actionText: can ? '修正' : '查看',
+          action: can ? 'edit_feeding' : 'view_feeding',
+          feeding: f,
+        })
+      }
+
+      return rows.slice(0, 8)
+    },
+
     showFeedingUserName() {
       const members = Array.isArray(this.familyMembers) ? this.familyMembers : []
       return members.length > 1
@@ -1246,31 +1443,38 @@ import { formatZodiacText } from '@/utils/zodiac'
       return times.filter((ms) => Number.isFinite(ms) && ms >= start && ms < end)
     },
 
-    timelinePlanFootTitle() {
+    todayPlanFutureTimesMs() {
       const times = Array.isArray(this.todayPlanTimesMs) ? this.todayPlanTimesMs : []
-      if (times.length <= 0) return ''
+      if (times.length <= 0) return []
       const nowMs = Number(this.nowTickMs || Date.now())
-      const future = times.filter((ms) => Number.isFinite(ms) && ms >= nowMs - 60 * 1000)
-      if (future.length <= 0) return ''
+      return times.filter((ms) => Number.isFinite(ms) && ms >= nowMs - 60 * 1000)
+    },
+
+    todayPlanNightCount() {
+      const future = Array.isArray(this.todayPlanFutureTimesMs) ? this.todayPlanFutureTimesMs : []
+      if (future.length <= 0) return 0
       const s = this.getFeedingSettingsSnapshot()
       const dayStart = Number(s.dayStartHour)
       const dayEnd = Number(s.dayEndHour)
-      const nightCount = future.filter((ms) => {
+      return future.filter((ms) => {
         const d = new Date(ms)
         if (Number.isNaN(d.getTime())) return false
         const h = d.getHours()
         return !(h >= dayStart && h < dayEnd)
       }).length
+    },
+
+    timelinePlanFootTitle() {
+      const future = Array.isArray(this.todayPlanFutureTimesMs) ? this.todayPlanFutureTimesMs : []
+      if (future.length <= 0) return ''
+      const nightCount = Number(this.todayPlanNightCount || 0)
       const total = future.length
-      if (nightCount > 0) return `预估还要 ${total} 次（夜间 ${nightCount} 次）`
-      return `预估还要 ${total} 次`
+      if (nightCount > 0) return `今天剩余 ${total} 次 · 夜间 ${nightCount} 次`
+      return `今天剩余 ${total} 次`
     },
 
     timelinePlanFootSub() {
-      const times = Array.isArray(this.todayPlanTimesMs) ? this.todayPlanTimesMs : []
-      if (times.length <= 0) return ''
-      const nowMs = Number(this.nowTickMs || Date.now())
-      const future = times.filter((ms) => Number.isFinite(ms) && ms >= nowMs - 60 * 1000)
+      const future = Array.isArray(this.todayPlanFutureTimesMs) ? this.todayPlanFutureTimesMs : []
       if (future.length <= 0) return ''
       const show = future
         .slice(0, 4)
@@ -1278,7 +1482,21 @@ import { formatZodiacText } from '@/utils/zodiac'
         .filter((t) => t && t !== '--:--')
       if (show.length <= 0) return ''
       const suffix = future.length > show.length ? '…' : ''
-      return `${show.join('、')}${suffix}`
+      const list = `${show.join('、')}${suffix}`
+      return list ? `后续：${list}` : ''
+    },
+
+    timelinePlanFootHint() {
+      const nightCount = Number(this.todayPlanNightCount || 0)
+      if (!Number.isFinite(nightCount) || nightCount <= 0) return ''
+      return '想少夜醒：去调整白天结束/夜间间隔'
+    },
+
+    timelinePlanFootFocus() {
+      // 线性体验：从“夜间次数”直接定位到最相关的设置（时间段）
+      const nightCount = Number(this.todayPlanNightCount || 0)
+      if (Number.isFinite(nightCount) && nightCount > 0) return 'time'
+      return ''
     },
 
     todayPlanTimelineMarks() {
@@ -1562,6 +1780,34 @@ import { formatZodiacText } from '@/utils/zodiac'
         }
       }
 
+      // 2.55) 生长数据：身高/体重用于更准确的参考奶量与健康信号（缺失时先给一个轻提示）
+      const cw = Number(this.currentBaby?.current_weight || 0)
+      const ch = Number(this.currentBaby?.current_height || 0)
+      const missingGrowth = !(Number.isFinite(cw) && cw > 0 && Number.isFinite(ch) && ch > 0)
+      if (missingGrowth) {
+        if (this.isBabyAdmin) {
+          items.push({
+            key: 'growth_fill',
+            tone: 'info',
+            icon: 'i',
+            title: '补充身高体重',
+            desc: '用于更准确的参考奶量与健康信号',
+            actionText: '去填写',
+            action: 'baby_info',
+          })
+        } else {
+          items.push({
+            key: 'growth_fill',
+            tone: 'info',
+            icon: 'i',
+            title: '补充身高体重',
+            desc: '需要管理员补充后，参考会更准确',
+            actionText: '家庭共享',
+            action: 'family',
+          })
+        }
+      }
+
       // 2.6) 换段提醒：按月龄推算段数（以包装为准），提前提醒避免临时手忙脚乱
       const stage = Number(this.currentFormulaStage || 0)
       const soon = this.stageBoundarySoon
@@ -1595,9 +1841,9 @@ import { formatZodiacText } from '@/utils/zodiac'
           if (rec && stage && rec !== stage) {
             items.push({
               key: `stage_check_${stage}_${rec}`,
-              tone: 'info',
-              icon: 'i',
-              title: '段数可能需要调整',
+              tone: 'warn',
+              icon: '!',
+              title: '段数可能不匹配',
               desc: `宝宝已${this.babyAgeText}，按月龄通常用${rec}段（以包装为准）`,
               actionText: '去设置',
               action: 'formula_select',
@@ -1801,6 +2047,10 @@ import { formatZodiacText } from '@/utils/zodiac'
         this.goToFeedingSettings(n.focus)
         return
       }
+      if (action === 'baby_info') {
+        this.goToBabyInfo()
+        return
+      }
       if (action === 'formula_select') {
         this.goToFormulaSelect()
         return
@@ -1970,6 +2220,17 @@ import { formatZodiacText } from '@/utils/zodiac'
       const hh = String(d.getHours()).padStart(2, '0')
       const mm = String(d.getMinutes()).padStart(2, '0')
       return `${hh}:${mm}`
+    },
+
+    formatMDHMText(ms) {
+      if (!Number.isFinite(ms) || ms <= 0) return '--.-- --:--'
+      const d = new Date(ms)
+      if (Number.isNaN(d.getTime())) return '--.-- --:--'
+      const mo = String(d.getMonth() + 1).padStart(2, '0')
+      const da = String(d.getDate()).padStart(2, '0')
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mm = String(d.getMinutes()).padStart(2, '0')
+      return `${mo}.${da} ${hh}:${mm}`
     },
 
 	    formatDayLabel(targetMs, nowMs) {
@@ -2563,13 +2824,33 @@ import { formatZodiacText } from '@/utils/zodiac'
           baby_id: this.currentBaby.id
         })
         const rawList = Array.isArray(res.feedings) ? res.feedings : []
-        // 兜底：忽略“未来记录”（常见于设备时间错误/脚本误传），否则会把倒计时推到十几个小时
+        // 兜底：忽略“未来记录”（常见于设备时间错误/脚本误传），否则会把倒计时推到十几个小时。
+        // 但“忽略”不等于“看不见”：把未来/异常时间记录单独收集出来，提供修复入口。
         const nowMs = Date.now()
         const graceMs = 2 * 60 * 1000
-        const list = rawList.filter((f) => {
+        const list = []
+        const future = []
+        const invalid = []
+        for (const f of rawList) {
           const ms = this.parseTimeToMs(f?.feeding_time)
-          return Number.isFinite(ms) && ms <= nowMs + graceMs
-        })
+          if (!Number.isFinite(ms) || ms <= 0) {
+            invalid.push({ ...f, __invalid_time_raw: String(f?.feeding_time || '') })
+            continue
+          }
+          if (ms > nowMs + graceMs) {
+            future.push(f)
+            continue
+          }
+          list.push(f)
+        }
+        this.futureFeedings = future.slice(0, 30)
+        this.invalidTimeFeedings = invalid.slice(0, 30)
+        this.feedingsMeta = {
+          rawCount: rawList.length,
+          validCount: list.length,
+          futureCount: future.length,
+          invalidTimeCount: invalid.length,
+        }
         this.recentFeedings = list
         const last = list[0] || null
         this.lastFeedingTimestampMs = last ? this.parseTimeToMs(last.feeding_time) : null
@@ -2914,7 +3195,8 @@ import { formatZodiacText } from '@/utils/zodiac'
 	      this.confirmSheetTitle = String(title || '')
 	      this.confirmSheetDesc = String(desc || '')
 	      this.confirmSheetConfirmText = String(confirmText || '确定')
-	      this.confirmSheetCancelText = String(cancelText || '取消')
+        this.confirmSheetShowCancel = cancelText !== false
+	      this.confirmSheetCancelText = cancelText === false ? '取消' : String(cancelText || '取消')
 	      this.confirmSheetVariant = variant === 'danger' ? 'danger' : 'primary'
 	      this.confirmSheetLoading = false
 	      this.confirmSheetVisible = true
@@ -2929,6 +3211,7 @@ import { formatZodiacText } from '@/utils/zodiac'
 	      this.confirmSheetTitle = ''
 	      this.confirmSheetDesc = ''
 	      this.confirmSheetResolver = null
+        this.confirmSheetShowCancel = true
 	      try {
 	        if (typeof r === 'function') r(!!ok)
 	      } catch {}
@@ -3036,8 +3319,8 @@ import { formatZodiacText } from '@/utils/zodiac'
       this.showExplainModal = true
     },
 
-    async handleHomeSignalCta() {
-      const act = String(this.homeSignalCtaAction || '')
+    async handleHomePrimaryAction() {
+      const act = String(this.homePrimaryAction || 'record')
       if (act === 'record') {
         await this.recordNextSuggested()
         return
@@ -3046,7 +3329,11 @@ import { formatZodiacText } from '@/utils/zodiac'
         await this.openTodayModal()
         return
       }
-      this.openExplainModal()
+      if (act === 'explain') {
+        this.openExplainModal()
+        return
+      }
+      await this.recordNextSuggested()
     },
 
     closeExplainModal() {
@@ -3089,11 +3376,9 @@ import { formatZodiacText } from '@/utils/zodiac'
 
     formatFeedingTime(raw) {
       if (!raw) return '--:--'
-      const d = new Date(String(raw).replace(' ', 'T'))
-      if (Number.isNaN(d.getTime())) return String(raw).slice(11, 16) || '--:--'
-      const hh = String(d.getHours()).padStart(2, '0')
-      const mm = String(d.getMinutes()).padStart(2, '0')
-      return `${hh}:${mm}`
+      const ms = this.parseTimeToMs(raw)
+      if (!Number.isFinite(ms) || ms <= 0) return String(raw).slice(11, 16) || '--:--'
+      return this.formatClockText(ms)
     },
 
     resolveMemberName(userId) {
@@ -3238,6 +3523,57 @@ import { formatZodiacText } from '@/utils/zodiac'
         await Promise.all([this.loadFeedings(), this.loadStats()])
       } catch (e) {
         uni.showToast({ title: e?.message || '删除失败', icon: 'none' })
+      }
+    },
+
+    async handleTodayFixRow(it) {
+      if (!it) return
+      const act = String(it.action || '')
+
+      if (act === 'refresh_today') {
+        await this.reloadTodayModal()
+        if (!this.todayModalError) uni.showToast({ title: '已刷新', icon: 'success' })
+        return
+      }
+
+      if (act === 'undo_last') {
+        const last = Array.isArray(this.recentFeedings) ? this.recentFeedings[0] : null
+        if (!last || !last.id) return
+        if (!this.canEditFeeding(last)) {
+          uni.showToast({ title: '需要管理员处理', icon: 'none' })
+          return
+        }
+        const timeText = this.formatFeedingTime(last.feeding_time)
+        const amount = Number(last.amount || 0)
+        const amountText = Number.isFinite(amount) ? `${Math.round(amount)}ml` : '--ml'
+        const ok = await this.openConfirmSheet({
+          title: '撤销最近一次记录？',
+          desc: `将删除 ${timeText} · ${amountText} 的记录（删除后不可恢复）。`,
+          cancelText: '取消',
+          confirmText: '撤销',
+          variant: 'danger',
+        })
+        if (!ok) return
+        try {
+          await api.delete(`/feedings/${last.id}`)
+          uni.showToast({ title: '已撤销', icon: 'success' })
+          await Promise.all([this.loadFeedings(), this.loadStats()])
+        } catch (e) {
+          uni.showToast({ title: e?.message || '撤销失败', icon: 'none' })
+        }
+        return
+      }
+
+      if (act === 'edit_feeding' || act === 'view_feeding') {
+        const feeding = it.feeding
+        if (!feeding) return
+        this.openDetail(feeding)
+        return
+      }
+
+      if (act === 'open_today') {
+        if (this.showTodayModal) return
+        await this.openTodayModal()
       }
     },
 
@@ -3722,6 +4058,15 @@ import { formatZodiacText } from '@/utils/zodiac'
   font-variant-numeric: tabular-nums;
 }
 
+.timeline-plan-hint {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(181, 83, 29, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .timeline-plan-chev {
   flex: 0 0 auto;
   font-size: 12px;
@@ -3872,36 +4217,20 @@ import { formatZodiacText } from '@/utils/zodiac'
   font-variant-numeric: tabular-nums;
 }
 
-.health-banner-cta {
+.health-banner-chev {
   flex: 0 0 auto;
-  padding: 8px 10px;
-  border-radius: 14px;
-  border: 1px solid rgba(var(--nb-ink-rgb), 0.12);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 10px 24px rgba(var(--nb-ink-rgb), 0.08);
-  box-sizing: border-box;
-  user-select: none;
-}
-
-.health-banner-cta:active {
-  transform: scale(0.99);
-}
-
-.health-banner-cta-text {
-  font-size: 12px;
+  font-size: 22px;
   font-weight: 900;
-  color: rgba(var(--nb-ink-rgb), 0.82);
-  white-space: nowrap;
+  color: rgba(var(--nb-ink-rgb), 0.32);
   line-height: 1;
+  transform: translateY(-1px);
 }
 
-.health-banner.lv-attention .health-banner-title,
-.health-banner.lv-attention .health-banner-cta-text {
+.health-banner.lv-attention .health-banner-title {
   color: rgba(181, 83, 29, 0.95);
 }
 
-.health-banner.lv-alert .health-banner-title,
-.health-banner.lv-alert .health-banner-cta-text {
+.health-banner.lv-alert .health-banner-title {
   color: var(--nb-danger);
 }
 
@@ -4333,6 +4662,127 @@ import { formatZodiacText } from '@/utils/zodiac'
 
 .today-timeline-wrap {
   margin-bottom: 12px;
+}
+
+.today-fix {
+  margin-bottom: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--nb-border);
+  overflow: hidden;
+}
+
+.today-fix.in-list {
+  margin-bottom: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  border-bottom: 1px solid var(--nb-line);
+}
+
+.today-fix-head {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--nb-line);
+}
+
+.today-fix.in-list .today-fix-head {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.today-fix-title {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--nb-text);
+}
+
+.today-fix-sub {
+  font-size: 12px;
+  color: var(--nb-muted);
+}
+
+.today-fix-row {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--nb-line);
+  user-select: none;
+}
+
+.today-fix-row:active {
+  background: rgba(27, 26, 23, 0.04);
+}
+
+.today-fix-row:last-child {
+  border-bottom: none;
+}
+
+.today-fix-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.today-fix-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  margin-top: 5px;
+  flex: 0 0 10px;
+  background: rgba(255, 138, 61, 0.85);
+}
+
+.today-fix-dot.t-warn {
+  background: rgba(255, 138, 61, 0.85);
+}
+
+.today-fix-dot.t-danger {
+  background: rgba(226, 74, 59, 0.88);
+}
+
+.today-fix-dot.t-info {
+  background: rgba(247, 201, 72, 0.85);
+}
+
+.today-fix-texts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.today-fix-main {
+  font-size: 13px;
+  font-weight: 900;
+  color: rgba(var(--nb-ink-rgb), 0.80);
+  line-height: 1.25;
+}
+
+.today-fix-desc {
+  font-size: 12px;
+  color: rgba(var(--nb-ink-rgb), 0.56);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.today-fix-cta {
+  flex: none;
+  font-size: 13px;
+  font-weight: 900;
+  color: rgba(var(--nb-ink-rgb), 0.70);
+  white-space: nowrap;
 }
 
 .today-modal-empty {

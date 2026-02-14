@@ -72,7 +72,7 @@
       </view>
 
     <!-- 时间段（影响“白天/晚上”的间隔应用范围） -->
-    <view class="section">
+    <view class="section" id="nb-focus-time">
       <view class="section-header">
         <text class="section-title">时间段</text>
         <text class="section-desc">把“晚上”对齐你的睡觉时间，能更少夜醒</text>
@@ -112,7 +112,7 @@
     </view>
 
     <!-- 白天设置 -->
-    <view class="section">
+    <view class="section" id="nb-focus-day">
       <view class="section-header">
         <text class="section-title">白天</text>
         <text class="section-desc">每隔 {{ settings.dayInterval }} 小时</text>
@@ -132,7 +132,7 @@
     </view>
 
     <!-- 晚上设置 -->
-    <view class="section">
+    <view class="section" id="nb-focus-night">
       <view class="section-header">
         <text class="section-title">晚上</text>
         <text class="section-desc">每隔 {{ settings.nightInterval }} 小时</text>
@@ -428,7 +428,12 @@ export default {
       if (!target || this.focusDone) return
       if (this.pageLoading || this.errorText) return
       this.focusDone = true
-      const selector = target === 'notify' ? '#nb-focus-notify' : target === 'reminder' ? '#nb-focus-reminder' : ''
+      let selector = ''
+      if (target === 'notify') selector = '#nb-focus-notify'
+      else if (target === 'reminder') selector = '#nb-focus-reminder'
+      else if (target === 'time') selector = '#nb-focus-time'
+      else if (target === 'day') selector = '#nb-focus-day'
+      else if (target === 'night') selector = '#nb-focus-night'
       if (!selector) return
       this.$nextTick(() => {
         try {

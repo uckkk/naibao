@@ -13,8 +13,16 @@
       <view class="group">
         <!-- 信息减法：资料编辑不再藏到下一层 Sheet；在本页一屏完成（更像 iOS 的“账号资料”）。 -->
         <view class="profile-editor">
-          <!-- 设置中不再提供“用户头像替换”：只展示头像（减少噪音/减少运营与审核心智负担）。 -->
-          <image :src="userAvatar" class="profile-avatar" mode="aspectFill" />
+          <!-- 头像更换入口收敛到“账号资料”页：点头像直接上传（设置列表不再重复入口）。 -->
+          <NbAvatarUpload
+            class="profile-avatar"
+            :src="userAvatar"
+            :size="72"
+            :radius="24"
+            :uploadUrl="userAvatarUploadUrl"
+            :disabled="profileSaving"
+            @uploaded="handleUserAvatarUploaded"
+          />
 
           <view class="profile-main">
             <text class="profile-title">账号资料</text>
@@ -217,9 +225,10 @@ import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
+import NbAvatarUpload from '@/components/NbAvatarUpload.vue'
 
 export default {
-  components: { NbState, NbNetworkBanner },
+  components: { NbState, NbNetworkBanner, NbAvatarUpload },
   data() {
     return {
       profileSaving: false,
@@ -258,6 +267,9 @@ export default {
     },
     userAvatar() {
       return this.user?.avatar_url || '/static/default-avatar.png'
+    },
+    userAvatarUploadUrl() {
+      return '/user/avatar/upload'
     },
     maskedPhone() {
       const raw = String(this.user?.phone || '').trim()
@@ -334,6 +346,22 @@ export default {
         }
       } catch {
         // ignore
+      }
+    },
+
+    async handleUserAvatarUploaded(url) {
+      const next = String(url || '').trim()
+      if (!next) return
+      if (this.profileSaving) return
+      const userStore = useUserStore()
+      this.profileSaving = true
+      try {
+        await userStore.updateAvatar(next)
+        uni.showToast({ title: '头像已更新', icon: 'success' })
+      } catch (e) {
+        uni.showToast({ title: e?.message || '更新失败', icon: 'none' })
+      } finally {
+        this.profileSaving = false
       }
     },
 
