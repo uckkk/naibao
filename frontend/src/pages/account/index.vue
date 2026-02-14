@@ -13,14 +13,8 @@
       <view class="group">
         <!-- 信息减法：资料编辑不再藏到下一层 Sheet；在本页一屏完成（更像 iOS 的“账号资料”）。 -->
         <view class="profile-editor">
-          <NbAvatarUpload
-            :src="draftAvatarUrl || userAvatar"
-            uploadUrl="/user/avatar/upload"
-            :size="72"
-            :radius="24"
-            :disabled="profileSaving"
-            @uploaded="handleAvatarUploaded"
-          />
+          <!-- 设置中不再提供“用户头像替换”：只展示头像（减少噪音/减少运营与审核心智负担）。 -->
+          <image :src="userAvatar" class="profile-avatar" mode="aspectFill" />
 
           <view class="profile-main">
             <text class="profile-title">账号资料</text>
@@ -223,15 +217,13 @@ import api from '@/utils/api'
 import { useUserStore } from '@/stores/user'
 import NbState from '@/components/NbState.vue'
 import NbNetworkBanner from '@/components/NbNetworkBanner.vue'
-import NbAvatarUpload from '@/components/NbAvatarUpload.vue'
 
 export default {
-  components: { NbState, NbNetworkBanner, NbAvatarUpload },
+  components: { NbState, NbNetworkBanner },
   data() {
     return {
       profileSaving: false,
       draftNickname: '',
-      draftAvatarUrl: '',
       editingNickname: false,
 
       passwordSheetVisible: false,
@@ -319,7 +311,6 @@ export default {
         // 外部刷新/保存后：同步草稿（避免用户看到旧值）
         if (this.profileSaving || this.editingNickname) return
         this.draftNickname = String(this.user?.nickname || '').trim()
-        this.draftAvatarUrl = ''
       },
     },
   },
@@ -343,26 +334,6 @@ export default {
         }
       } catch {
         // ignore
-      }
-    },
-
-    async handleAvatarUploaded(url) {
-      const nextUrl = String(url || '').trim()
-      if (!nextUrl) return
-      if (this.profileSaving) return
-      const userStore = useUserStore()
-      this.profileSaving = true
-      // 先乐观更新：让用户立刻看到新头像（更像 iOS 的“立即生效”）
-      this.draftAvatarUrl = nextUrl
-      try {
-        await userStore.updateProfile({ avatar_url: nextUrl })
-        this.draftAvatarUrl = ''
-        uni.showToast({ title: '头像已更新', icon: 'success' })
-      } catch (e) {
-        this.draftAvatarUrl = ''
-        uni.showToast({ title: e?.message || '更新失败', icon: 'none' })
-      } finally {
-        this.profileSaving = false
       }
     },
 
@@ -542,6 +513,16 @@ export default {
   align-items: center;
   gap: 12px;
   box-sizing: border-box;
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(27, 26, 23, 0.10);
+  box-shadow: 0 10px 24px rgba(27, 26, 23, 0.10);
 }
 
 .profile-main {

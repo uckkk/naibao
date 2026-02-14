@@ -104,6 +104,18 @@
           </view>
 
           <view class="group">
+            <view class="summary-head">
+              <text class="summary-title">注意事项</text>
+            </view>
+            <view class="note-list">
+              <text class="note-item">· 旧/新分开冲泡，按喂次交替，不混合</text>
+              <text class="note-item">· 尽量一次只改一项：先别同时换奶粉 + 换段 + 换奶嘴</text>
+              <text class="note-item">· 重点观察：便便、皮疹、吐奶、精神状态、睡眠</text>
+              <text class="note-item">· 如连续不适/明显异常：暂停并咨询医生</text>
+            </view>
+          </view>
+
+          <view class="group">
             <view class="cells">
               <view v-if="canEdit" class="cell tappable" @click="togglePause">
                 <text class="cell-title">{{ plan.status === 'paused' ? '继续转奶' : '暂停转奶' }}</text>
@@ -587,6 +599,19 @@ export default {
   font-size: 12px;
   color: rgba(var(--nb-ink-rgb), 0.56);
   line-height: 1.6;
+}
+
+.note-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-item {
+  font-size: 13px;
+  color: rgba(var(--nb-ink-rgb), 0.70);
+  line-height: 1.55;
 }
 
 .danger-text {

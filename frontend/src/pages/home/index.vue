@@ -595,6 +595,116 @@ import { formatZodiacText } from '@/utils/zodiac'
     babyAge() {
       return calcAgeInDays(this.currentBaby?.birth_date)
     },
+
+    babyAgeMonthsInt() {
+      const birth = parseBirthDateToLocal(this.currentBaby?.birth_date)
+      if (!birth) return 0
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const now = new Date(nowMs)
+      if (Number.isNaN(now.getTime())) return 0
+      const { years, months } = diffYmd(birth, now)
+      return Math.max(0, Number(years || 0) * 12 + Number(months || 0))
+    },
+
+    // 按月龄推算的“推荐段数”（以包装说明为准）：用于换段提醒与检查
+    recommendedStageByAge() {
+      const m = Number(this.babyAgeMonthsInt || 0)
+      if (!Number.isFinite(m)) return 0
+      if (m < 6) return 1
+      if (m < 12) return 2
+      if (m < 36) return 3
+      return 4
+    },
+
+    // 当前绑定奶粉的“段数”（来自 selection.age_range）；0 表示未指定/无法解析
+    currentFormulaStage() {
+      const stage = parseAgeRangeToStage(this.selectedFormula?.age_range)
+      return stage > 0 ? stage : 0
+    },
+
+    // 段数边界的“提前提醒”：例如快到 6/12/36 个月时，提前 10 天提醒准备换段（以包装为准）
+    stageBoundarySoon() {
+      const birth = parseBirthDateToLocal(this.currentBaby?.birth_date)
+      if (!birth) return null
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const now = new Date(nowMs)
+      if (Number.isNaN(now.getTime())) return null
+
+      const leadDays = 10
+      const dayMs = 24 * 60 * 60 * 1000
+      const boundaries = [
+        { boundaryMonths: 6, nextStage: 2 },
+        { boundaryMonths: 12, nextStage: 3 },
+        { boundaryMonths: 36, nextStage: 4 },
+      ]
+
+      let best = null
+      for (const b of boundaries) {
+        const atMs = new Date(
+          birth.getFullYear(),
+          birth.getMonth() + Number(b.boundaryMonths || 0),
+          birth.getDate(),
+          0,
+          0,
+          0,
+          0
+        ).getTime()
+        if (!Number.isFinite(atMs) || atMs <= 0) continue
+        const diffDays = Math.ceil((atMs - nowMs) / dayMs)
+        if (!Number.isFinite(diffDays) || diffDays < 0 || diffDays > leadDays) continue
+        if (!best || atMs < best.atMs) best = { ...b, atMs, diffDays }
+      }
+      return best
+    },
+
+    isBabyAdmin() {
+      const userStore = useUserStore()
+      const me = userStore.user?.id
+      if (!me) return false
+      const members = Array.isArray(this.familyMembers) ? this.familyMembers : []
+      const m = members.find((x) => String(x.user_id) === String(me))
+      return m?.role === 'admin'
+    },
+
+    // 检测“已切换到新奶粉，但未开启转奶计划”的场景：给一个线性入口开始 7 天转奶
+    weaningSuggestion() {
+      if (this.hasWeaningPlan) return null
+
+      const newId = Number(this.selectedFormula?.brand_id || 0)
+      if (!Number.isFinite(newId) || newId <= 0) return null
+
+      const nowMs = Number(this.nowTickMs || Date.now())
+      const list = Array.isArray(this.recentFeedings) ? this.recentFeedings : []
+
+      let oldFeeding = null
+      for (const f of list) {
+        const bid = Number(f?.formula_brand_id || 0)
+        if (!Number.isFinite(bid) || bid <= 0) continue
+        if (bid !== newId) {
+          oldFeeding = f
+          break
+        }
+      }
+      if (!oldFeeding) return null
+
+      const oldId = Number(oldFeeding?.formula_brand_id || 0)
+      if (!Number.isFinite(oldId) || oldId <= 0 || oldId === newId) return null
+
+      const oldMs = this.parseTimeToMs(oldFeeding?.feeding_time)
+      // 太久远的“历史品牌”不再提示，避免误判（例如几个月前换过一次）
+      const maxAgeMs = 45 * 24 * 60 * 60 * 1000
+      if (Number.isFinite(oldMs) && oldMs > 0 && Number.isFinite(nowMs) && nowMs - oldMs > maxAgeMs) return null
+
+      return {
+        key: `weaning_${oldId}_${newId}`,
+        oldBrandId: oldId,
+        oldSeriesName: String(oldFeeding?.formula_series_name || ''),
+        oldAtMs: Number.isFinite(oldMs) ? oldMs : 0,
+        newBrandId: newId,
+        newSeriesName: String(this.selectedFormula?.series_name || ''),
+        newAgeRange: String(this.selectedFormula?.age_range || ''),
+      }
+    },
 	    // 奶粉段位徽标：对 0-12 月场景，按月龄给出 1/2 段的轻提示
 	    formulaStageBadge() {
 	      // 优先使用用户已选择的段位（换段时更符合直觉）；缺失再用月龄兜底推断
@@ -1425,6 +1535,77 @@ import { formatZodiacText } from '@/utils/zodiac'
         }
       }
 
+      // 2.5) 转奶期提醒：检测到“已切换到新奶粉”但未开启转奶计划时，给出线性入口
+      // 说明：此提醒优先级高于“勺数换算/偏好”，因为它影响后续每次投喂与记录的口径。
+      const ws = this.weaningSuggestion
+      if (ws && ws.oldBrandId && ws.newBrandId && !this.hasWeaningPlan) {
+        if (this.isBabyAdmin) {
+          items.push({
+            key: ws.key,
+            tone: 'warn',
+            icon: '!',
+            title: '建议开启转奶期',
+            desc: '已检测到切换奶粉；7天交替喂次（不混合），更稳妥',
+            actionText: '开始',
+            action: 'start_weaning',
+          })
+        } else {
+          items.push({
+            key: ws.key,
+            tone: 'warn',
+            icon: '!',
+            title: '建议开启转奶期',
+            desc: '需要管理员确认后才能开启',
+            actionText: '家庭共享',
+            action: 'family',
+          })
+        }
+      }
+
+      // 2.6) 换段提醒：按月龄推算段数（以包装为准），提前提醒避免临时手忙脚乱
+      const stage = Number(this.currentFormulaStage || 0)
+      const soon = this.stageBoundarySoon
+      if (this.selectedFormula?.brand_id) {
+        if (!stage) {
+          items.push({
+            key: 'formula_stage',
+            tone: 'info',
+            icon: 'i',
+            title: '补充奶粉段数',
+            desc: '用于换段提醒（以包装为准）',
+            actionText: '去设置',
+            action: 'formula_select',
+          })
+        } else if (soon && stage === Number(soon.nextStage || 0) - 1) {
+          const d = Number(soon.diffDays || 0)
+          const desc = Number.isFinite(d) && d > 0
+            ? `还有${d}天到${soon.boundaryMonths}个月（以包装为准）`
+            : `已到${soon.boundaryMonths}个月（以包装为准）`
+          items.push({
+            key: `stage_soon_${soon.nextStage}`,
+            tone: 'info',
+            icon: 'i',
+            title: `准备换到${soon.nextStage}段？`,
+            desc,
+            actionText: '去设置',
+            action: 'formula_select',
+          })
+        } else {
+          const rec = Number(this.recommendedStageByAge || 0)
+          if (rec && stage && rec !== stage) {
+            items.push({
+              key: `stage_check_${stage}_${rec}`,
+              tone: 'info',
+              icon: 'i',
+              title: '段数可能需要调整',
+              desc: `宝宝已${this.babyAgeText}，按月龄通常用${rec}段（以包装为准）`,
+              actionText: '去设置',
+              action: 'formula_select',
+            })
+          }
+        }
+      }
+
       // 3) 已绑定但缺“勺数换算”：把入口提前到首页（仍然很轻）
       if (this.canShowScoopHint) {
         items.push({
@@ -1608,6 +1789,14 @@ import { formatZodiacText } from '@/utils/zodiac'
     handleSetupNudgeTap(nudge) {
       const n = nudge || {}
       const action = String(n.action || '')
+      if (action === 'start_weaning') {
+        this.startSuggestedWeaningPlan()
+        return
+      }
+      if (action === 'family') {
+        this.goFamily()
+        return
+      }
       if (action === 'feeding_settings') {
         this.goToFeedingSettings(n.focus)
         return
@@ -1664,6 +1853,55 @@ import { formatZodiacText } from '@/utils/zodiac'
       const t = String(topic || '').trim()
       const q = t ? `?topic=${encodeURIComponent(t)}` : ''
       uni.navigateTo({ url: `/pages/help/index${q}` })
+    },
+
+    goFamily() {
+      const babyId = this.currentBaby?.id
+      if (!babyId) return
+      uni.navigateTo({ url: `/pages/family/index?babyId=${encodeURIComponent(String(babyId))}` })
+    },
+
+    async startSuggestedWeaningPlan() {
+      const babyId = this.currentBaby?.id
+      const ws = this.weaningSuggestion
+      if (!babyId || !ws || !ws.oldBrandId || !ws.newBrandId) {
+        uni.showToast({ title: '未检测到可开启的转奶场景', icon: 'none' })
+        return
+      }
+
+      if (!this.isBabyAdmin) {
+        uni.showToast({ title: '仅管理员可开启转奶期', icon: 'none' })
+        return
+      }
+
+      const ok = await this.openConfirmSheet({
+        title: '开始 7 天转奶期？',
+        desc: '按“旧奶粉 ↔ 新奶粉”交替喂次（不混合）。\n如宝宝出现明显不适，请暂停并咨询医生。',
+        cancelText: '暂不',
+        confirmText: '开始',
+        variant: 'primary',
+      })
+      if (!ok) return
+
+      try {
+        await api.post(`/babies/${babyId}/weaning-plan`, {
+          mode: 'alternate',
+          duration_days: 7,
+          old_brand_id: ws.oldBrandId,
+          old_series_name: String(ws.oldSeriesName || ''),
+          old_age_range: '',
+          new_brand_id: ws.newBrandId,
+          new_series_name: String(ws.newSeriesName || ''),
+          new_age_range: String(ws.newAgeRange || ''),
+        })
+
+        // 立刻刷新：首页投喂将自动按“旧/新”切换
+        await this.loadWeaningPlan()
+        this.dismissSetupNudge(ws.key)
+        uni.showToast({ title: '已开启转奶期', icon: 'success' })
+      } catch (e) {
+        uni.showToast({ title: e?.message || '开启转奶期失败', icon: 'none' })
+      }
     },
 
     parseRefRange(text) {
@@ -3160,7 +3398,13 @@ import { formatZodiacText } from '@/utils/zodiac'
 .home-container {
   min-height: 100vh;
   width: 100%;
-  background-color: transparent;
+  /* 兜底：有些 WebView/浏览器对 page 背景渲染不一致，导致顶部出现“白色标题栏/白块”观感。
+     首页容器自己再铺一层同款背景，确保从最顶端开始是奶油渐变而不是白底。 */
+  background:
+    linear-gradient(180deg, rgba(27, 26, 23, 0.12) 0%, rgba(27, 26, 23, 0) 140px),
+    radial-gradient(1200px 600px at 20% -10%, rgba(255, 216, 136, 0.35), rgba(255, 216, 136, 0) 60%),
+    radial-gradient(900px 500px at 90% 0%, rgba(255, 155, 92, 0.22), rgba(255, 155, 92, 0) 55%),
+    #fffaf2;
   display: flex;
   flex-direction: column;
   /* 预留底部主按钮 + 撤销条 + 安全区 */
