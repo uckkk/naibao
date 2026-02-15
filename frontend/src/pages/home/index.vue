@@ -3734,6 +3734,8 @@ import { formatZodiacText } from '@/utils/zodiac'
 .home-container {
   min-height: 100vh;
   width: 100%;
+  /* 强约束：避免某些 WebView 在运行期丢失/覆盖全局 CSS 变量，导致卡片列宽度“变窄”。 */
+  --nb-content-max: 680px;
   /* 兜底：有些 WebView/浏览器对 page 背景渲染不一致，导致顶部出现“白色标题栏/白块”观感。
      首页容器自己再铺一层同款背景，确保从最顶端开始是奶油渐变而不是白底。 */
   background:
@@ -3743,6 +3745,7 @@ import { formatZodiacText } from '@/utils/zodiac'
     #fffaf2;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   /* 预留底部主按钮 + 撤销条 + 安全区 */
   padding-bottom: calc(170px + env(safe-area-inset-bottom, 0px));
   position: relative;
